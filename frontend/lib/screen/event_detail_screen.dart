@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
 import 'package:seerah_timeline/screen/active_quiz_screen.dart';
+import 'package:seerah_timeline/screen/media_viewer_screen.dart';
 import 'package:seerah_timeline/widget/custom_back_button.dart';
 import 'package:seerah_timeline/widget/custom_network_image.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'package:seerah_timeline/services/favorites_service.dart'; // Added
+import 'package:seerah_timeline/providers/providers.dart';
 
-class EventDetailScreen extends StatefulWidget {
+class EventDetailScreen extends ConsumerStatefulWidget {
   final String id; // Changed
   final String title;
   final String date;
@@ -34,15 +36,31 @@ class EventDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<EventDetailScreen> createState() => _EventDetailScreenState();
+  ConsumerState<EventDetailScreen> createState() => _EventDetailScreenState();
 }
 
-class _EventDetailScreenState extends State<EventDetailScreen> {
+class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
   YoutubePlayerController? _youtubeController;
 
   @override
   void initState() {
     super.initState();
+
+    // Track this as the last visited event for "Resume Reading"
+    ref.read(lastVisitedProvider.notifier).save(
+      LastVisitedEvent(
+        id: widget.id,
+        title: widget.title,
+        imageUrl: widget.imageUrl,
+        date: widget.date,
+        period: widget.period,
+        description: widget.description,
+      ),
+    );
+
+    // Count this event as read
+    ref.read(readEventsProvider.notifier).markRead(widget.id);
+
     if (widget.imageUrl != null) {
       final videoId = YoutubePlayer.convertUrlToId(widget.imageUrl!);
       if (videoId != null) {
@@ -70,8 +88,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textMain = isDark ? const Color(0xFFE5E7EB) : Colors.black87;
+    final textSub = isDark ? const Color(0xFF9CA3AF) : Colors.black54;
+
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.scaffoldBackground,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -79,9 +102,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: ValueListenableBuilder<List<String>>(
-              valueListenable: FavoritesService().favoriteIds,
-              builder: (context, favIds, _) {
+            child: Builder(
+              builder: (context) {
+                final favIds = ref.watch(favoritesProvider);
                 final isFav = favIds.contains(widget.id);
                 return IconButton(
                   icon: Icon(
@@ -89,7 +112,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     color: isFav ? Colors.pinkAccent : const Color(0xFF0D9488),
                   ),
                   onPressed: () {
-                    FavoritesService().toggleFavorite(widget.id);
+                    ref.read(favoritesProvider.notifier).toggle(widget.id);
                   },
                 );
               },
@@ -105,42 +128,60 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             children: [
               // Banner: YouTube Player or Image
               if (widget.imageAsset != null || widget.imageUrl != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                     width: double.infinity,
-                     // If it's a YouTube video, let the player determine height (aspect ratio)
-                     // If it's an image, force height 200
-                     height: _youtubeController != null ? null : 200, 
-                     decoration: const BoxDecoration(
-                       shape: BoxShape.rectangle,
-                     ),
-                    child: _youtubeController != null
-                        ? YoutubePlayer(
-                            controller: _youtubeController!,
-                            showVideoProgressIndicator: true,
-                            progressIndicatorColor: const Color(0xFF0D9488),
-                            progressColors: const ProgressBarColors(
-                              playedColor: Color(0xFF0D9488),
-                              handleColor: Color(0xFF0D9488),
-                            ),
-                          )
-                        : (widget.imageAsset != null
-                            ? Image.asset(widget.imageAsset!, fit: BoxFit.cover)
-                            : CustomNetworkImage(
-                                imageUrl: widget.imageUrl!,
-                                fit: BoxFit.cover,
-                                errorWidget: Container(
-                                  color: Colors.teal.shade300,
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.broken_image_rounded,
-                                      color: Colors.white70,
-                                      size: 44,
+                GestureDetector(
+                  onTap: () {
+                    if (widget.imageUrl == null && widget.imageAsset == null) {
+                      return;
+                    }
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MediaViewerScreen(
+                          mediaUrl: widget.imageUrl,
+                          imageAsset: widget.imageAsset,
+                          title: widget.title,
+                        ),
+                      ),
+                    );
+                  },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                       width: double.infinity,
+                       // If it's a YouTube video, let the player determine height (aspect ratio)
+                       // If it's an image, force height 200
+                       height: _youtubeController != null ? null : 200,
+                       decoration: const BoxDecoration(
+                         shape: BoxShape.rectangle,
+                       ),
+                      child: _youtubeController != null
+                          ? YoutubePlayer(
+                              controller: _youtubeController!,
+                              showVideoProgressIndicator: true,
+                              progressIndicatorColor: const Color(0xFF0D9488),
+                              progressColors: const ProgressBarColors(
+                                playedColor: Color(0xFF0D9488),
+                                handleColor: Color(0xFF0D9488),
+                              ),
+                            )
+                          : (widget.imageAsset != null
+                              ? Image.asset(widget.imageAsset!, fit: BoxFit.cover)
+                              : CustomNetworkImage(
+                                  imageUrl: widget.imageUrl!,
+                                  fit: BoxFit.cover,
+                                  errorWidget: Container(
+                                    color: Colors.teal.shade300,
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.broken_image_rounded,
+                                        color: Colors.white70,
+                                        size: 44,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              )),
+                                )),
+                    ),
                   ),
                 ),
 
@@ -232,11 +273,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
               const SizedBox(height: 16),
 
-              // 📖 Description Box
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: cardBg,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
@@ -245,18 +285,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       offset: const Offset(0, 4),
                     ),
                   ],
-                  border: Border.all(color: Colors.grey.shade100),
+                  border: Border.all(color: isDark ? Colors.white12 : Colors.grey.shade100),
                 ),
                 padding: const EdgeInsets.all(16),
                 child: Text(
                   widget.description,
-                  textAlign: TextAlign.right, // RTL for Urdu text
+                  textAlign: TextAlign.right,
                   textDirection: TextDirection.rtl,
-                  style: const TextStyle(
-                    color: Colors.black87,
+                  style: TextStyle(
+                    color: textMain,
                     fontSize: 16,
                     height: 1.8,
-                    fontFamily: 'Noto Nastaliq Urdu', // Better Urdu font
+                    fontFamily: 'Noto Nastaliq Urdu',
                   ),
                 ),
               ),
@@ -269,6 +309,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   Icons.menu_book_outlined,
                   widget.references,
                   context,
+                  isDark: isDark,
+                  cardBg: cardBg,
+                  textMain: textMain,
+                  textSub: textSub,
                 ),
                 
               if (widget.lessons.isNotEmpty) ...[
@@ -280,6 +324,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   Icons.lightbulb_outline,
                   widget.lessons,
                   context,
+                  isDark: isDark,
+                  cardBg: cardBg,
+                  textMain: textMain,
+                  textSub: textSub,
                 ),
               ],
 
@@ -325,10 +373,23 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   // 🔹 Reusable Expandable Tile
-  Widget _buildExpandableTile(String title, IconData icon, List<String> items, BuildContext context) {
+  Widget _buildExpandableTile(
+    String title,
+    IconData icon,
+    List<String> items,
+    BuildContext context, {
+    bool isDark = false,
+    Color? cardBg,
+    Color? textMain,
+    Color? textSub,
+  }) {
+    final bgColor = cardBg ?? Colors.white;
+    final mainColor = textMain ?? Colors.black87;
+    final subColor = textSub ?? Colors.black54;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bgColor,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
@@ -337,7 +398,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             offset: const Offset(0, 4),
           ),
         ],
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(color: isDark ? Colors.white12 : Colors.grey.shade100),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -357,51 +418,55 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           iconColor: const Color(0xFF0D9488),
           collapsedIconColor: const Color(0xFF0D9488),
           childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          children: items.isEmpty 
-          ? [
-               const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    "No content available.",
-                     style: TextStyle(
-                      color: Colors.black54,
-                      fontSize: 14,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-               )
-            ]
-          : [
-            ...items.map((item) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end, // Align right for Urdu
-                children: [
-                   Expanded(
+          children: items.isEmpty
+              ? [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Text(
-                      item,
-                      textAlign: TextAlign.right,
-                      textDirection: TextDirection.rtl,
-                      style: const TextStyle(
-                        fontFamily: 'Noto Nastaliq Urdu',
+                      "No content available.",
+                      style: TextStyle(
+                        color: subColor,
                         fontSize: 14,
-                        color: Colors.black87,
-                        height: 1.5,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  )
+                ]
+              : [
+                  ...items.map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              item,
+                              textAlign: TextAlign.right,
+                              textDirection: TextDirection.rtl,
+                              style: TextStyle(
+                                fontFamily: 'Noto Nastaliq Urdu',
+                                fontSize: 14,
+                                color: mainColor,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Padding(
+                            padding: EdgeInsets.only(top: 6),
+                            child: Icon(Icons.circle,
+                                size: 6, color: Color(0xFF0D9488)),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6),
-                    child: Icon(Icons.circle, size: 6, color: Color(0xFF0D9488)),
-                  ),
                 ],
-              ),
-            )),
-          ],
         ),
       ),
     );
   }
 }
+

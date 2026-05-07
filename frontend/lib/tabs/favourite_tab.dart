@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
-import 'package:seerah_timeline/services/favorites_service.dart';
+import 'package:seerah_timeline/providers/providers.dart';
 import 'package:seerah_timeline/screen/video_player_screen.dart';
 import 'package:seerah_timeline/screen/event_detail_screen.dart';
 import 'package:seerah_timeline/widget/custom_network_image.dart';
+import 'package:seerah_timeline/widget/custom_back_button.dart';
+import 'package:seerah_timeline/widget/app_search_bar.dart';
 
-class FavouriteTab extends StatefulWidget {
+class FavouriteTab extends ConsumerStatefulWidget {
   const FavouriteTab({super.key});
 
   @override
-  State<FavouriteTab> createState() => _FavouriteTabState();
+  ConsumerState<FavouriteTab> createState() => _FavouriteTabState();
 }
 
-class _FavouriteTabState extends State<FavouriteTab> {
+class _FavouriteTabState extends ConsumerState<FavouriteTab> {
   final _supabase = Supabase.instance.client;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
@@ -69,8 +72,30 @@ class _FavouriteTabState extends State<FavouriteTab> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark ? const Color(0xFF121212) : AppColors.scaffoldBackground;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final primaryText = isDark ? Colors.white : Colors.black87;
+    final secondaryText = isDark ? Colors.white70 : Colors.grey[600];
+
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: background,
+      appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF1A1A1A) : AppColors.scaffoldBackground,
+        scrolledUnderElevation: 0,
+        elevation: 0,
+        centerTitle: true,
+        leading: const CustomBackButton(),
+        title: RichText(
+          text: const TextSpan(
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            children: [
+              TextSpan(text: 'My ', style: TextStyle(color: AppColors.primary)),
+              TextSpan(text: 'Favorites', style: TextStyle(color: AppColors.accent)),
+            ],
+          ),
+        ),
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -80,49 +105,38 @@ class _FavouriteTabState extends State<FavouriteTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "My Favorite",
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Inter', 
+                  RichText(
+                    text: const TextSpan(
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Inter', 
+                      ),
+                      children: [
+                        TextSpan(
+                          text: 'My ',
+                          style: TextStyle(color: AppColors.primary),
+                        ),
+                        TextSpan(
+                          text: 'Favorites',
+                          style: TextStyle(color: AppColors.accent),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     "Quick access to saved events & lessons",
                     style: TextStyle(
-                      color: Colors.grey[600],
+                      color: secondaryText,
                       fontSize: 14,
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
-                  // Search Bar
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.backgroundLight,
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      style: const TextStyle(color: AppColors.primary),
-                      decoration: const InputDecoration(
-                        hintText: "Search favorites....",
-                        hintStyle: TextStyle(color: AppColors.primary),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                        suffixIcon: Icon(Icons.search, color: AppColors.primary),
-                      ),
-                    ),
+                  AppSearchBar(
+                    hintText: "Search favorites...",
+                    onChanged: (value) {},
+                    controller: _searchController,
                   ),
                 ],
               ),
@@ -130,9 +144,9 @@ class _FavouriteTabState extends State<FavouriteTab> {
 
             // Favorites List
             Expanded(
-              child: ValueListenableBuilder<List<String>>(
-                valueListenable: FavoritesService().favoriteIds,
-                builder: (context, favoriteIds, _) {
+              child: Builder(
+                builder: (context) {
+                  final favoriteIds = ref.watch(favoritesProvider);
                   if (favoriteIds.isEmpty) {
                     return const Center(
                       child: Column(
@@ -178,7 +192,7 @@ class _FavouriteTabState extends State<FavouriteTab> {
                              child: Text(
                                "${events.length} items found",
                                style: TextStyle(
-                                 color: Colors.grey[700],
+                                   color: secondaryText,
                                  fontSize: 14,
                                  fontWeight: FontWeight.w500,
                                ),
@@ -215,6 +229,12 @@ class _FavouriteTabState extends State<FavouriteTab> {
 
   // Card for items with Video/Image content
   Widget _buildDetailedCard(BuildContext context, Map<String, dynamic> event) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final titleColor = isDark ? Colors.white : AppColors.textPrimary;
+    final descriptionColor = isDark ? Colors.white70 : AppColors.textSecondary;
+    final metadataColor = isDark ? Colors.white70 : Colors.grey[800]!;
+
     final bool isVideo = _isYouTubeVideo(event['image_url']);
     
     return GestureDetector(
@@ -225,11 +245,11 @@ class _FavouriteTabState extends State<FavouriteTab> {
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: isDark ? Colors.black54 : Colors.black.withOpacity(0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -294,10 +314,10 @@ class _FavouriteTabState extends State<FavouriteTab> {
                           event['title'] ?? 'No Title',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
+                            color: titleColor,
                           ),
                         ),
                       ),
@@ -313,9 +333,9 @@ class _FavouriteTabState extends State<FavouriteTab> {
                     event['short_description'] ?? '',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: AppColors.textSecondary,
+                      color: descriptionColor,
                       height: 1.3,
                     ),
                   ),
@@ -332,7 +352,7 @@ class _FavouriteTabState extends State<FavouriteTab> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w500, // Medium weight
-                            color: Colors.grey[800],
+                            color: metadataColor,
                           ),
                         ),
                       ),
@@ -351,6 +371,10 @@ class _FavouriteTabState extends State<FavouriteTab> {
 
   // Simple Card for items without content (Name only)
   Widget _buildSimpleCard(BuildContext context, Map<String, dynamic> event) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final titleColor = isDark ? Colors.white : AppColors.textPrimary;
+
     return GestureDetector(
       onTap: () {
          _navigateToDetail(context, event, false);
@@ -359,12 +383,12 @@ class _FavouriteTabState extends State<FavouriteTab> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: isDark ? Colors.white12 : Colors.grey.shade200),
            boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: isDark ? Colors.black54 : Colors.black.withOpacity(0.03),
               blurRadius: 5,
               offset: const Offset(0, 2),
             ),
@@ -376,10 +400,10 @@ class _FavouriteTabState extends State<FavouriteTab> {
             Expanded(
               child: Text(
                 event['title'] ?? 'No Title',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
+                  color: titleColor,
                 ),
               ),
             ),

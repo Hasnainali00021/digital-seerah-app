@@ -1,25 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:seerah_timeline/widget/app_search_bar.dart';
 import 'package:seerah_timeline/widget/custom_appbar.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../constants/app_colors.dart';
+import '../providers/providers.dart';
 import '../widget/timeline_card.dart';
 
-class TimelineScreen extends StatefulWidget {
+class TimelineScreen extends ConsumerStatefulWidget {
   const TimelineScreen({super.key});
 
   @override
-  State<TimelineScreen> createState() => _TimelineScreenState();
+  ConsumerState<TimelineScreen> createState() => _TimelineScreenState();
 }
 
-class _TimelineScreenState extends State<TimelineScreen> {
-  final supabase = Supabase.instance.client;
-  List<Map<String, dynamic>> events = [];
-  List<Map<String, dynamic>> filteredEvents = [];
-  bool isLoading = true;
-  String? errorMessage;
-  String selectedCategory = 'All'; // Default selected tab
-  String _searchQuery = '';
+class _TimelineScreenState extends ConsumerState<TimelineScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -28,68 +22,12 @@ class _TimelineScreenState extends State<TimelineScreen> {
     super.dispose();
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _fetchEvents();
-  }
-
-  Future<void> _fetchEvents() async {
-    try {
-      final response = await supabase
-          .from('timeline_events')
-          .select()
-          .order('order_index', ascending: true);
-
-      setState(() {
-        events = List<Map<String, dynamic>>.from(response);
-        _filterEvents();
-        isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        errorMessage = 'Failed to load events: $e';
-        isLoading = false;
-        
-      });
-    }
-  }
-
-  void _filterEvents() {
-    setState(() {
-      filteredEvents = events.where((event) {
-        // 1. Category Filter
-        final matchesCategory = selectedCategory == 'All' || event['category'] == selectedCategory;
-
-        // 2. Search Filter
-        final query = _searchQuery.toLowerCase().trim();
-        final title = (event['title'] ?? '').toString().toLowerCase();
-        final description = (event['short_description'] ?? '').toString().toLowerCase();
-        final fullDesc = (event['full_description'] ?? '').toString().toLowerCase();
-        final year = (event['year'] ?? '').toString().toLowerCase();
-
-        final matchesSearch = query.isEmpty ||
-            title.contains(query) ||
-            description.contains(query) ||
-            fullDesc.contains(query) ||
-            year.contains(query);
-
-        return matchesCategory && matchesSearch;
-      }).toList();
-    });
-  }
-
   void _onCategorySelected(String category) {
-    setState(() {
-      selectedCategory = category;
-      _filterEvents();
-    });
+    ref.read(selectedCategoryProvider.notifier).state = category;
   }
   
   void _onSearchQueryChanged(String query) {
-     _searchQuery = query;
-     _filterEvents();
+    ref.read(searchQueryProvider.notifier).state = query;
   }
 
   // 🔹 Builds the timeline layout with line, circle, and card
@@ -128,8 +66,13 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final selectedCategory = ref.watch(selectedCategoryProvider);
+    final asyncEvents = ref.watch(timelineEventsProvider);
+    final filteredEvents = ref.watch(filteredEventsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.scaffoldBackground,
       appBar: CustomAppbar(titleOne: "Seerah ", titleTwo: "Timeline"),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 5),
@@ -162,60 +105,53 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
             // 🔹 Timeline Cards with Line and Circles
             Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : errorMessage != null
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.error_outline,
-                            color: Colors.red,
-                            size: 48,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            errorMessage!,
-                            style: const TextStyle(color: Colors.red),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: _fetchEvents,
-                            child: const Text('Retry'),
-                          ),
-                        ],
+              child: asyncEvents.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stack) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                      const SizedBox(height: 16),
+                      Text(error.toString(), style: const TextStyle(color: Colors.red), textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () => ref.invalidate(timelineEventsProvider),
+                        child: const Text('Retry'),
                       ),
-                    )
-                  : filteredEvents.isEmpty
-                  ? const Center(child: Text('No events found'))
-                  : ListView.builder(
-                      itemCount: filteredEvents.length,
-                      itemBuilder: (context, index) {
-                        final event = filteredEvents[index];
-                        
-                        // Parse JSON/List columns safely
-                        // Supabase Dart returns text[] as List<dynamic> usually
-                        final refs = (event['references'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
-                        final less = (event['lessons'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+                    ],
+                  ),
+                ),
+                data: (_) {
+                  if (filteredEvents.isEmpty) {
+                    return const Center(child: Text('No events found'));
+                  }
+                  return ListView.builder(
+                    itemCount: filteredEvents.length,
+                    itemBuilder: (context, index) {
+                      final event = filteredEvents[index];
+                      
+                      final refs = (event['references'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+                      final less = (event['lessons'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
 
-                        return buildTimelineItem(
-                          context,
-                          TimelineCard(
-                            id: event['id'].toString(), 
-                            year: event['year'] ?? '',
-                            title: event['title'] ?? 'Untitled',
-                            description: event['short_description'] ?? '',
-                            imageUrl: event['image_url'],
-                            fullDescription: event['full_description'],
-                            category: event['category'],
-                            references: refs,
-                            lessons: less,
-                          ),
-                        );
-                      },
-                    ),
+                      return buildTimelineItem(
+                        context,
+                        TimelineCard(
+                          id: event['id'].toString(), 
+                          year: event['year'] ?? '',
+                          title: event['title'] ?? 'Untitled',
+                          description: event['short_description'] ?? '',
+                          imageUrl: event['image_url'],
+                          fullDescription: event['full_description'],
+                          category: event['category'],
+                          references: refs,
+                          lessons: less,
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -225,13 +161,14 @@ class _TimelineScreenState extends State<TimelineScreen> {
 
   // 🔘 Filter Button Builder
   Widget _buildFilterButton(String text, bool selected) {
+    final isDark = false; // accessed from context if needed — buttons are always teal when selected
     return GestureDetector(
       onTap: () => _onCategorySelected(text),
       child: Container(
         margin: const EdgeInsets.only(right: 10),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primary : Colors.white,
+          color: selected ? AppColors.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppColors.primary),
         ),

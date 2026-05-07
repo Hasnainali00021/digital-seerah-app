@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hijri/hijri_calendar.dart';
 import 'package:iconsax/iconsax.dart';
 import '../widget/action_card.dart';
 import '../widget/bottom_nav_bar.dart';
 import './timeline_screen.dart';
 import '../tabs/favourite_tab.dart';
-import '../tabs/profile_tab.dart';
+import '../tabs/profile_overview_tab.dart';
 import '../tabs/multimedia_tab.dart';
 import '../tabs/lesson_tab.dart';
 import './chatbot_screen.dart';
@@ -22,28 +25,43 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
-  int _currentCardIndex = 0;
-  final PageController _pageController = PageController();
+  late Timer _clockTimer;
+  DateTime _now = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _clockTimer.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final homeContent = SafeArea(
       child: Container(
         width: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
-            colors: [
-              AppColors.white,
-              AppColors.backgroundMint,
-              AppColors.backgroundMint,
-            ],
+            colors: isDark
+                ? [
+                    const Color(0xFF1A1A1A),
+                    const Color(0xFF121212),
+                    const Color(0xFF121212),
+                  ]
+                : [
+                    AppColors.white,
+                    AppColors.backgroundMint,
+                    AppColors.backgroundMint,
+                  ],
           ),
         ),
         child: SingleChildScrollView(
@@ -68,7 +86,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final pages = [
       homeContent,
       const FavouriteTab(),
-      const ProfileTab(),
+      const ProfileOverviewTab(),
       const MultimediaTab(),
       const LessonTab(),
     ];
@@ -85,7 +103,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       },
       child: Scaffold(
         body: IndexedStack(index: _selectedIndex, children: pages),
-  
+
         // ✅ Reusable Bottom Navigation Bar
         bottomNavigationBar: BottomNavBar(
           currentIndex: _selectedIndex,
@@ -104,7 +122,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Image.asset('assets/images/logo.png', height: 75, width: 70),
+        Image.asset(
+          'assets/images/login_logo_cropped.png',
+          height: 75,
+          width: 70,
+        ),
         const SizedBox(width: 20),
         Expanded(
           child: RichText(
@@ -146,7 +168,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const NotificationScreen()),
+                MaterialPageRoute(
+                  builder: (context) => const NotificationScreen(),
+                ),
               );
             },
           ),
@@ -155,214 +179,292 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ---------------- Swipeable Info Cards ----------------
-  Widget buildInfoCards() {
-    return Column(
-      children: [
-        SizedBox(
-          height: 140,
-          child: PageView(
-            controller: _pageController,
-            onPageChanged: (index) {
-              setState(() {
-                _currentCardIndex = index;
-              });
-            },
-            children: [
-              _buildInfoCard(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0D9488), Color(0xFF14B8A6)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                icon: Iconsax.book_1,
-                title: 'Seerah Journey',
-                subtitle: 'Explore the life of Prophet Muhammad (ﷺ)',
-                iconBg: Colors.white.withOpacity(0.2),
-              ),
-              _buildInfoCard(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFEA82F), Color(0xFFFBBF24)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                icon: Iconsax.crown_1,
-                title: 'Daily Wisdom',
-                subtitle: 'Learn from the Prophet\'s teachings',
-                iconBg: Colors.white.withOpacity(0.2),
-              ),
-              _buildInfoCard(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF3B82F6), Color(0xFF60A5FA)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                icon: Iconsax.star_1,
-                title: 'Milestones',
-                subtitle: 'Key events in Islamic history',
-                iconBg: Colors.white.withOpacity(0.2),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        _buildPageIndicator(),
-      ],
-    );
-  }
+  // ----------- Major Islamic Events (Hijri month-day) -----------
+  static const Map<String, String> _islamicEvents = {
+    '1-1': 'Islamic New Year',
+    '1-10': 'Day of Ashura',
+    '3-12': 'Mawlid al-Nabi ﷺ (Eid Milad-un-Nabi)',
+    '7-27': 'Isra & Mi\'raj (Night Journey)',
+    '8-15': 'Shab-e-Barat (Night of Fortune)',
+    '9-1': 'Ramadan Begins',
+    '9-17': 'Battle of Badr (Youm-e-Badr)',
+    '9-20': 'Conquest of Makkah',
+    '9-27': 'Laylat al-Qadr (Night of Power)',
+    '10-1': 'Eid al-Fitr',
+    '10-2': 'Eid al-Fitr (Day 2)',
+    '10-3': 'Eid al-Fitr (Day 3)',
+    '12-8': 'Day of Tarwiyah (Hajj begins)',
+    '12-9': 'Day of Arafah',
+    '12-10': 'Eid al-Adha',
+    '12-11': 'Eid al-Adha (Day 2)',
+    '12-12': 'Eid al-Adha (Day 3)',
+    '12-18': 'Eid al-Ghadeer',
+  };
 
-  Widget _buildInfoCard({
-    required Gradient gradient,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color iconBg,
-  }) {
+  // ---------------- Single Info Card with Live Clock ----------------
+  Widget buildInfoCards() {
+    final hour = _now.hour % 12 == 0 ? 12 : _now.hour % 12;
+    final minute = _now.minute.toString().padLeft(2, '0');
+    final amPm = _now.hour >= 12 ? 'PM' : 'AM';
+    final timeString = '$hour:$minute $amPm';
+
+    // Greeting
+    String greeting;
+    IconData greetingIcon;
+    if (_now.hour < 12) {
+      greeting = 'Good Morning';
+      greetingIcon = Iconsax.sun_1;
+    } else if (_now.hour < 17) {
+      greeting = 'Good Afternoon';
+      greetingIcon = Iconsax.sun_fog;
+    } else {
+      greeting = 'Good Evening';
+      greetingIcon = Iconsax.moon;
+    }
+
+    // Islamic (Hijri) date
+    final hijri = HijriCalendar.now();
+    final hijriDate = '${hijri.hDay} ${hijri.longMonthName} ${hijri.hYear} AH';
+
+    // Check for Islamic event today
+    final eventKey = '${hijri.hMonth}-${hijri.hDay}';
+    final todayEvent = _islamicEvents[eventKey];
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12),
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       decoration: BoxDecoration(
-        gradient: gradient,
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0D9488), Color(0xFF14B8A6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
+            color: const Color(0xFF0D9488).withOpacity(0.25),
+            blurRadius: 10,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: Colors.white, size: 32),
+          // Top row: Greeting + Book icon
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(greetingIcon, color: const Color(0xFFFBBF24), size: 18),
+                  const SizedBox(width: 6),
+                  Text(
+                    greeting,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Iconsax.book_1,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 13,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+          const SizedBox(height: 6),
+
+          // Center: Bold Current Time
+          Text(
+            timeString,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 2,
             ),
+          ),
+          const SizedBox(height: 4),
+
+          // Islamic date with crescent icon
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Iconsax.moon, color: Color(0xFFFBBF24), size: 14),
+              const SizedBox(width: 5),
+              Text(
+                hijriDate,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+
+          // Islamic Event Banner (only if there's an event today)
+          if (todayEvent != null) ...[
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFBBF24).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: const Color(0xFFFBBF24).withOpacity(0.4),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Iconsax.star_1,
+                    color: Color(0xFFFBBF24),
+                    size: 14,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      '🎉 Today: $todayEvent',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 6),
+
+          // Divider
+          Container(
+            width: 50,
+            height: 2,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(1),
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          // Bottom: Seerah Journey title + subtitle
+          const Text(
+            'Seerah Journey',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Explore the life of Prophet Muhammad (ﷺ)',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 11,
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildPageIndicator() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(3, (index) {
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: _currentCardIndex == index ? 24 : 8,
-          height: 4,
-          decoration: BoxDecoration(
-            color: _currentCardIndex == index
-                ? AppColors.primary
-                : AppColors.primary.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(4),
-          ),
-        );
-      }),
     );
   }
 
   // ---------------- Event of the Day Card ----------------
   Widget shumailEvents(BuildContext context) {
     return GestureDetector(
-    child: Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, offset: Offset(0, 2), blurRadius: 4),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Shumail of Rasulullah ﷺ',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              offset: Offset(0, 2),
+              blurRadius: 4,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Shumail of Rasulullah ﷺ',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'How Prophet(PBUH) looked and behaved',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500,
+                  const SizedBox(height: 4),
+                  const Text(
+                    'How Prophet(PBUH) looked and presented',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                const Text(
-                  'His(ﷺ) Akhalaq, speaking, style and teachings',
-                  style: TextStyle(fontSize: 12, color: Color.fromARGB(240, 255, 255, 255)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  const Text(
+                    'His(ﷺ) Akhalaq, speaking, style and teachings',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color.fromARGB(240, 255, 255, 255),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8),
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Iconsax.calendar_25,
+                size: 28,
+                color: Colors.white,
+              ),
             ),
-            child: const Icon(
-              Iconsax.calendar_25,
-              size: 28,
-              color: Colors.white,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-    onTap: () {
+      onTap: () {
         Navigator.push(
-          context, 
-          MaterialPageRoute(builder: (context) => const ShumailScreen())
+          context,
+          MaterialPageRoute(builder: (context) => const ShumailScreen()),
         );
-      }
+      },
     );
   }
 
@@ -411,20 +513,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ActionCard(
-                color: Colors.lightBlue.shade800,
-                icon: Icons.play_circle_fill,
-                label: "Mulimedia",
+                color: Colors.blue.shade600,
+                icon: Icons.collections_rounded,
+                label: "Multimedia",
                 onTap: () {
                   setState(() {
                     _selectedIndex = 3;
                   });
                 },
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               ActionCard(
-                color: Colors.orange.shade700,
-                icon: Icons.favorite,
-                label: "Favourite",
+                color: Colors.red.shade400,
+                icon: Icons.favorite_rounded,
+                label: "Favorite",
                 onTap: () {
                   setState(() {
                     _selectedIndex = 1;
@@ -442,23 +544,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ActionCard(
-                color: Colors.green.shade700,
-                icon: Icons.quiz,
+                color: Colors.teal.shade500,
+                icon: Icons.psychology_rounded,
                 label: "Quiz",
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const QuizScreen(),
-                    ),
+                    MaterialPageRoute(builder: (context) => const QuizScreen()),
                   );
                 },
               ),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               ActionCard(
-                color: Colors.purple.shade700,
-                icon: Icons.chat_bubble_outline,
-                label: "AI Chat",
+                color: Colors.deepPurple.shade500,
+                icon: Icons.quickreply_rounded,
+                label: "AI Chatbot",
                 onTap: () {
                   Navigator.push(
                     context,

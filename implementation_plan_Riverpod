@@ -1,0 +1,627 @@
+# 🏗️ Implementation Plan — Riverpod + Notification System
+
+## Overview
+
+This plan integrates **Riverpod** as the global state management solution across the entire app and builds a **dual notification system** (Local + FCM).
+
+```mermaid
+graph TB
+    subgraph "Riverpod Providers"
+        A[authProvider] --> B[Auth State: LoggedIn/Guest]
+        C[timelineProvider] --> D[Cached Timeline Events]
+        E[favoritesProvider] --> F[Heart Icons Everywhere]
+        G[lastVisitedProvider] --> H[Resume Reading Card]
+        I[chatStreamProvider] --> J[ChatGPT-style Typing]
+    end
+
+    subgraph "Notification System"
+        K[Local Notifications] --> L[24h Inactivity Reminder]
+        M[FCM Push] --> N[Ramadan / Islamic Events]
+    end
+
+    H --> K
+    B --> A
+```
+
+---
+
+## Decisions
+
+> [!IMPORTANT]
+> **Both Local + FCM will be used.** They serve different purposes:
+> | Feature | Technology | Why |
+> |---|---|---|
+> | "Resume Reading" 24h reminder | **Local Notification** | Works offline, no server needed, privacy-first |
+> | 🕌 Ramadan reminders, 📅 Islamic event announcements | **FCM Push** | Server-initiated, reaches all users at once |
+
+> [!NOTE]
+> **Riverpod Version:** We will use `flutter_riverpod` (latest stable). This uses `ProviderScope` at the root and `ConsumerWidget` / `ConsumerStatefulWidget` in screens.
+
+---
+
+## Phase 1: Foundation — Riverpod Setup
+
+### [MODIFY] `pubspec.yaml`
+
+Add the following dependencies:
+
+```yaml
+dependencies:
+  # ... existing deps ...
+  flutter_riverpod: ^2.6.1
+  # Notifications
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.10.0
+  firebase_core: ^3.13.0
+  firebase_messaging: ^15.2.5
+```
+
+### [MODIFY] `main.dart`
+
+Wrap `MyApp` in `ProviderScope`:
+
+```dart
+// Before
+runApp(const MyApp());
+
+// After
+runApp(const ProviderScope(child: MyApp()));
+```
+
+- Remove `FavoritesService().init()` from `main()` (will be handled by provider).
+- Change `MyApp` from `StatefulWidget` → `ConsumerStatefulWidget`.
+- Initialize `NotificationService` and `FirebaseMessaging` in `main()`.
+- Add `WidgetsBindingObserver` for app lifecycle (schedule/cancel local notifications).
+
+### [NEW] `lib/providers/providers.dart`
+
+Central file exporting all providers. Keeps imports clean.
+
+```
+lib/
+└── providers/
+    ├── providers.dart          ← barrel file
+    ├── auth_provider.dart
+    ├── timeline_provider.dart
+    ├── favorites_provider.dart
+    ├── last_visited_provider.dart
+    └── chat_provider.dart
+```
+
+### Verification
+- App compiles and runs identically to before.
+- No visual changes — purely structural.
+
+---
+
+## Phase 2: Auth Provider
+
+### [NEW] `lib/providers/auth_provider.dart`
+
+```dart
+// Watches Supabase onAuthStateChange stream
+final authStateProvider = StreamProvider<AuthState>((ref) {
+  return Supabase.instance.client.auth.onAuthStateChange;
+});
+```
+
+### [MODIFY] `lib/auth/auth_gate.dart`
+
+- Change `StatelessWidget` → `ConsumerWidget`.
+- Replace `StreamBuilder<AuthState>` with `ref.watch(authStateProvider)`.
+- Use `.when(data:, loading:, error:)` pattern for clean state handling.
+
+```dart
+// Before
+StreamBuilder<AuthState>(
+  stream: Supabase.instance.client.auth.onAuthStateChange,
+  builder: (context, snapshot) { ... }
+)
+
+// After (inside ConsumerWidget.build)
+final authState = ref.watch(authStateProvider);
+return authState.when(
+  data: (state) {
+    if (state.event == AuthChangeEvent.passwordRecovery) {
+      return const UpdatePasswordScreen();
+    }
+    return state.session != null
+        ? const DashboardScreen()
+        : const LoginScreen();
+  },
+  loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+  error: (e, _) => const LoginScreen(),
+);
+```
+
+### [KEEP] `lib/auth/auth_service.dart`
+
+No changes. Service methods (signIn, signUp, etc.) remain as-is. They are **actions**, not state.
+
+### Verification
+- Login → Dashboard works.
+- Logout → Login works.
+- Password recovery deep link → Update Password screen works.
+
+---
+
+## Phase 3: Favorites Provider
+
+### [NEW] `lib/providers/favorites_provider.dart`
+
+```dart
+// StateNotifier replaces FavoritesService singleton
+class FavoritesNotifier extends StateNotifier<List<String>> {
+  FavoritesNotifier() : super([]) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getStringList('favorite_event_ids') ?? [];
+  }
+
+  Future<void> toggle(String id) async {
+    if (state.contains(id)) {
+      state = state.where((e) => e != id).toList();
+    } else {
+      state = [...state, id];
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('favorite_event_ids', state);
+  }
+
+  bool isFavorite(String id) => state.contains(id);
+}
+
+final favoritesProvider =
+    StateNotifierProvider<FavoritesNotifier, List<String>>((ref) {
+  return FavoritesNotifier();
+});
+```
+
+### [MODIFY] `lib/screen/event_detail_screen.dart`
+
+- Change `StatefulWidget` → `ConsumerStatefulWidget`.
+- Replace `ValueListenableBuilder<List<String>>` with `ref.watch(favoritesProvider)`.
+
+```dart
+// Before
+ValueListenableBuilder<List<String>>(
+  valueListenable: FavoritesService().favoriteIds,
+  builder: (context, favIds, _) { ... }
+)
+
+// After (inside ConsumerStatefulWidget)
+final favIds = ref.watch(favoritesProvider);
+final isFav = favIds.contains(widget.id);
+IconButton(
+  icon: Icon(isFav ? Icons.favorite : Icons.favorite_border, ...),
+  onPressed: () => ref.read(favoritesProvider.notifier).toggle(widget.id),
+)
+```
+
+### [MODIFY] `lib/tabs/favourite_tab.dart`
+
+- Change to `ConsumerWidget`.
+- Replace `ValueListenableBuilder` with `ref.watch(favoritesProvider)`.
+
+### [DELETE] `lib/services/favorites_service.dart`
+
+No longer needed — fully replaced by `FavoritesNotifier`.
+
+### Verification
+- Tap heart on event detail → icon fills immediately.
+- Navigate to Favorites tab → event appears.
+- Un-favorite → disappears from tab in real time.
+- Restart app → favorites persist.
+
+---
+
+## Phase 4: Timeline Provider
+
+### [NEW] `lib/providers/timeline_provider.dart`
+
+```dart
+final timelineProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final response = await Supabase.instance.client
+      .from('timeline_events')
+      .select()
+      .order('order_index', ascending: true);
+  return List<Map<String, dynamic>>.from(response);
+});
+
+// Category filter state
+final selectedCategoryProvider = StateProvider<String>((ref) => 'All');
+
+// Search query state
+final searchQueryProvider = StateProvider<String>((ref) => '');
+
+// Derived: filtered events
+final filteredTimelineProvider = Provider<AsyncValue<List<Map<String, dynamic>>>>((ref) {
+  final eventsAsync = ref.watch(timelineProvider);
+  final category = ref.watch(selectedCategoryProvider);
+  final query = ref.watch(searchQueryProvider).toLowerCase().trim();
+
+  return eventsAsync.whenData((events) {
+    return events.where((event) {
+      final matchesCategory = category == 'All' || event['category'] == category;
+      final title = (event['title'] ?? '').toString().toLowerCase();
+      final desc = (event['short_description'] ?? '').toString().toLowerCase();
+      final matchesSearch = query.isEmpty || title.contains(query) || desc.contains(query);
+      return matchesCategory && matchesSearch;
+    }).toList();
+  });
+});
+```
+
+### [MODIFY] `lib/screen/timeline_screen.dart`
+
+- Change to `ConsumerStatefulWidget`.
+- Remove local `events`, `filteredEvents`, `isLoading`, `errorMessage` state.
+- Remove `_fetchEvents()` method.
+- Use `ref.watch(filteredTimelineProvider)` with `.when()`.
+
+### Verification
+- Timeline loads events from Supabase.
+- Category filter works.
+- Search filter works.
+- Pull-to-refresh with `ref.refresh(timelineProvider)`.
+
+---
+
+## Phase 5: Resume Reading + Last Visited Provider
+
+### [NEW] `lib/providers/last_visited_provider.dart`
+
+```dart
+class LastVisitedEvent {
+  final String id;
+  final String title;
+  final String? imageUrl;
+  final String date;
+  final String period;
+  final String description;
+
+  LastVisitedEvent({
+    required this.id,
+    required this.title,
+    this.imageUrl,
+    required this.date,
+    required this.period,
+    required this.description,
+  });
+
+  Map<String, dynamic> toJson() => { ... };
+  factory LastVisitedEvent.fromJson(Map<String, dynamic> json) => ...;
+}
+
+class LastVisitedNotifier extends StateNotifier<LastVisitedEvent?> {
+  LastVisitedNotifier() : super(null) { _load(); }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = prefs.getString('last_visited_event');
+    if (json != null) {
+      state = LastVisitedEvent.fromJson(jsonDecode(json));
+    }
+  }
+
+  Future<void> save(LastVisitedEvent event) async {
+    state = event;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('last_visited_event', jsonEncode(event.toJson()));
+  }
+}
+
+final lastVisitedProvider =
+    StateNotifierProvider<LastVisitedNotifier, LastVisitedEvent?>((ref) {
+  return LastVisitedNotifier();
+});
+```
+
+### [MODIFY] `lib/screen/event_detail_screen.dart`
+
+In `initState`, save the current event:
+
+```dart
+@override
+void initState() {
+  super.initState();
+  // Track this as the last visited event
+  ref.read(lastVisitedProvider.notifier).save(
+    LastVisitedEvent(
+      id: widget.id,
+      title: widget.title,
+      imageUrl: widget.imageUrl,
+      date: widget.date,
+      period: widget.period,
+      description: widget.description,
+    ),
+  );
+}
+```
+
+### [MODIFY] `lib/screen/notification_screen.dart`
+
+- Change to `ConsumerWidget`.
+- Replace hardcoded "Migration to Madina" with `ref.watch(lastVisitedProvider)`.
+- If `null`, show a friendly "Start exploring to see your progress here" message.
+
+```dart
+final lastVisited = ref.watch(lastVisitedProvider);
+
+// Hero Section
+if (lastVisited != null) {
+  // Show real data: lastVisited.title, lastVisited.imageUrl, etc.
+  // Resume button navigates to EventDetailScreen with real data
+} else {
+  // Show empty state: "No events visited yet"
+}
+```
+
+### Verification
+1. Open app → Timeline → tap "Battle of Badr".
+2. Go back → tap Notification icon.
+3. ✅ Resume Reading card shows "Battle of Badr" with correct image.
+4. Tap "Resume Reading" → opens the correct event detail.
+5. Restart app → still shows "Battle of Badr".
+
+---
+
+## Phase 6: Local Notifications (24h Inactivity Reminder)
+
+### [NEW] `lib/services/notification_service.dart`
+
+```dart
+class NotificationService {
+  static final NotificationService _instance = NotificationService._();
+  factory NotificationService() => _instance;
+  NotificationService._();
+
+  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+
+  Future<void> initialize() async {
+    // Android init settings
+    // iOS init settings
+    // Request permissions
+    // Initialize timezone data
+  }
+
+  Future<void> scheduleInactivityReminder({
+    required String eventTitle,
+    Duration delay = const Duration(hours: 24),
+  }) async {
+    await _plugin.zonedSchedule(
+      0, // notification ID
+      'Continue your Seerah Journey 📖',
+      'Pick up "$eventTitle" where you left off',
+      tz.TZDateTime.now(tz.local).add(delay),
+      // ... notification details, channel config
+    );
+  }
+
+  Future<void> cancelInactivityReminder() async {
+    await _plugin.cancel(0);
+  }
+}
+```
+
+### [MODIFY] `main.dart` — App Lifecycle
+
+```dart
+class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final lastVisited = ref.read(lastVisitedProvider);
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      if (lastVisited != null) {
+        NotificationService().scheduleInactivityReminder(
+          eventTitle: lastVisited.title,
+        );
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      NotificationService().cancelInactivityReminder();
+    }
+  }
+}
+```
+
+### [MODIFY] `android/app/src/main/AndroidManifest.xml`
+
+Add permissions:
+```xml
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+```
+
+### Verification
+1. Open an event → minimize app.
+2. (For testing: set delay to 10 seconds).
+3. ✅ Notification appears: "Continue your Seerah Journey 📖".
+4. Tap notification → app opens → navigates to that event.
+5. Re-open app normally → notification is cancelled.
+
+---
+
+## Phase 7: FCM Push Notifications (Ramadan / Islamic Events)
+
+### [NEW] Firebase Project Setup (Manual Step)
+
+> [!WARNING]
+> You need to create a Firebase project and download `google-services.json`.
+> 1. Go to [Firebase Console](https://console.firebase.google.com).
+> 2. Create project → Add Android app (`com.example.seerah_timeline` or your package name).
+> 3. Download `google-services.json` → place in `android/app/`.
+> 4. Follow FlutterFire CLI or manual setup for Gradle files.
+
+### [MODIFY] `android/build.gradle` (project-level)
+
+```groovy
+classpath 'com.google.gms:google-services:4.4.2'
+```
+
+### [MODIFY] `android/app/build.gradle` (app-level)
+
+```groovy
+apply plugin: 'com.google.gms.google-services'
+```
+
+### [MODIFY] `main.dart`
+
+```dart
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  await NotificationService().initialize();
+
+  // FCM: Request permission + get token
+  final messaging = FirebaseMessaging.instance;
+  await messaging.requestPermission();
+  final token = await messaging.getToken();
+  print('📱 FCM Token: $token');
+
+  // Handle background messages
+  FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+
+  // Handle foreground messages
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    // Show local notification for foreground FCM
+    NotificationService().showFCMNotification(message);
+  });
+
+  await Supabase.initialize(...);
+  runApp(const ProviderScope(child: MyApp()));
+}
+```
+
+### [MODIFY] `lib/services/notification_service.dart`
+
+Add method to display FCM messages as local notifications when app is in foreground:
+
+```dart
+Future<void> showFCMNotification(RemoteMessage message) async {
+  final notification = message.notification;
+  if (notification == null) return;
+
+  await _plugin.show(
+    notification.hashCode,
+    notification.title,
+    notification.body,
+    // ... platform-specific details
+  );
+}
+```
+
+### Backend: Sending FCM from Server (Future Task)
+
+For sending Ramadan reminders / Islamic event announcements, you would add a CRON job or scheduled function on your backend that calls the FCM API. This is a **separate backend task** and not covered in this frontend plan.
+
+### Verification
+1. ✅ App starts → FCM token prints in console.
+2. Send test notification from Firebase Console → appears on device.
+3. App in foreground → notification shows as local notification.
+4. App in background → system notification appears.
+5. Tap notification → app opens.
+
+---
+
+## Phase 8 (Future): Chatbot Streaming Provider
+
+> [!TIP]
+> This phase is planned for when the chatbot backend supports streaming (SSE/WebSocket). The current implementation uses a single HTTP POST request.
+
+### [NEW] `lib/providers/chat_provider.dart`
+
+```dart
+class ChatMessage {
+  final String role; // 'user' or 'assistant'
+  final String content;
+  final bool isStreaming;
+
+  ChatMessage({required this.role, required this.content, this.isStreaming = false});
+}
+
+class ChatNotifier extends StateNotifier<List<ChatMessage>> {
+  ChatNotifier() : super([]);
+
+  Future<void> sendMessage(String query) async {
+    // Add user message
+    state = [...state, ChatMessage(role: 'user', content: query)];
+
+    // Add empty assistant message (streaming placeholder)
+    state = [...state, ChatMessage(role: 'assistant', content: '', isStreaming: true)];
+
+    // Stream response chunk-by-chunk
+    final client = http.Client();
+    final request = http.Request('POST', Uri.parse('...'));
+    // ... SSE streaming logic ...
+    // On each chunk: update last message's content
+  }
+}
+
+final chatProvider =
+    StateNotifierProvider<ChatNotifier, List<ChatMessage>>((ref) {
+  return ChatNotifier();
+});
+```
+
+This gives the **ChatGPT-style typing effect** you asked about.
+
+---
+
+## Summary of All File Changes
+
+| Action | File | Phase |
+|---|---|---|
+| MODIFY | `pubspec.yaml` | 1 |
+| MODIFY | `main.dart` | 1, 6, 7 |
+| NEW | `lib/providers/providers.dart` | 1 |
+| NEW | `lib/providers/auth_provider.dart` | 2 |
+| MODIFY | `lib/auth/auth_gate.dart` | 2 |
+| NEW | `lib/providers/favorites_provider.dart` | 3 |
+| MODIFY | `lib/screen/event_detail_screen.dart` | 3, 5 |
+| MODIFY | `lib/tabs/favourite_tab.dart` | 3 |
+| DELETE | `lib/services/favorites_service.dart` | 3 |
+| NEW | `lib/providers/timeline_provider.dart` | 4 |
+| MODIFY | `lib/screen/timeline_screen.dart` | 4 |
+| NEW | `lib/providers/last_visited_provider.dart` | 5 |
+| MODIFY | `lib/screen/notification_screen.dart` | 5 |
+| NEW | `lib/services/notification_service.dart` | 6 |
+| MODIFY | `AndroidManifest.xml` | 6, 7 |
+| MODIFY | `android/build.gradle` | 7 |
+| MODIFY | `android/app/build.gradle` | 7 |
+| NEW | `lib/providers/chat_provider.dart` | 8 (Future) |
+
+---
+
+## Execution Order
+
+> [!IMPORTANT]
+> We will implement **one phase at a time**, verify it works, then move to the next. 
+> 
+> **Suggested starting order:**
+> 1. ✅ Phase 1 (Riverpod setup) — 10 min
+> 2. ✅ Phase 3 (Favorites) — 15 min — *Most impactful, proves Riverpod works*
+> 3. ✅ Phase 5 (Last Visited) — 15 min — *Enables notification feature*
+> 4. ✅ Phase 2 (Auth) — 10 min — *Clean migration*
+> 5. ✅ Phase 4 (Timeline) — 15 min — *Caching benefit*
+> 6. ✅ Phase 6 (Local Notifications) — 20 min — *Core feature*
+> 7. ✅ Phase 7 (FCM) — 30 min — *Requires Firebase setup*
+> 8. 🔮 Phase 8 (Chat Streaming) — Future task
+
+**Ready to start? Say the word and I'll begin with Phase 1.**

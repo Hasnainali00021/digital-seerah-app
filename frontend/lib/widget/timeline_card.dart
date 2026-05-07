@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
 import 'package:seerah_timeline/widget/custom_network_image.dart';
 import '../screen/event_detail_screen.dart';
-import 'package:seerah_timeline/services/favorites_service.dart';
+import 'package:seerah_timeline/providers/providers.dart';
 
-class TimelineCard extends StatelessWidget {
+class TimelineCard extends ConsumerWidget {
   final String id; // Changed to String
   final String year;
   final String title;
   final String description;
-  // Optional: local asset path (e.g. 'assets/images/book.png')
+  // Optional: local asset path
   final String? imageAsset;
   // Optional: network image URL
   final String? imageUrl;
@@ -36,7 +37,12 @@ class TimelineCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = AppColors.primary;
+    final actionBarColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final actionTextColor = isDark ? const Color(0xFF2DD4BF) : AppColors.primary;
+
     return GestureDetector(
       onTap: () {
         // 👇 Navigate to Event Detail Screen, pass optional image
@@ -60,11 +66,11 @@ class TimelineCard extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: AppColors.primary,
+          color: cardColor,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black12.withOpacity(0.1),
+              color: isDark ? Colors.black54 : Colors.black12.withOpacity(0.1),
               blurRadius: 6,
               offset: const Offset(0, 4),
             ),
@@ -114,9 +120,9 @@ class TimelineCard extends StatelessWidget {
               child: Row(
                 children: [
                    // Favorite Icon (Left side)
-                   ValueListenableBuilder<List<String>>(
-                    valueListenable: FavoritesService().favoriteIds,
-                    builder: (context, favIds, _) {
+                   Builder(
+                    builder: (context) {
+                      final favIds = ref.watch(favoritesProvider);
                       final isFav = favIds.contains(id);
                       return IconButton(
                         icon: Icon(
@@ -125,7 +131,7 @@ class TimelineCard extends StatelessWidget {
                           size: 20, // Small but not too small
                         ),
                         onPressed: () {
-                          FavoritesService().toggleFavorite(id);
+                          ref.read(favoritesProvider.notifier).toggle(id);
                         },
                       );
                     },
@@ -176,17 +182,17 @@ class TimelineCard extends StatelessWidget {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(10),
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: actionBarColor,
                 borderRadius: BorderRadius.vertical(
                   bottom: Radius.circular(16),
                 ),
               ),
-              child: const Center(
+              child: Center(
                 child: Text(
                   "Read More",
                   style: TextStyle(
-                    color: AppColors.primary,
+                    color: actionTextColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

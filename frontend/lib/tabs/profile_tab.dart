@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:seerah_timeline/auth/auth_service.dart';
-import 'package:seerah_timeline/components/ui/avatar.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
 import 'package:seerah_timeline/main.dart';
 import 'package:seerah_timeline/screen/login_screen.dart';
 import 'package:seerah_timeline/widget/profile_input_field.dart';
-import 'package:seerah_timeline/components/ui/signout_button.dart';
-import 'package:seerah_timeline/components/ui/save_button.dart';
+import 'package:seerah_timeline/widget/custom_back_button.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:iconsax/iconsax.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -21,6 +20,7 @@ class _ProfileTabState extends State<ProfileTab> {
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   String? _imageUrl;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -36,202 +36,246 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _getInitialProfile() async {
-    final userId = supabase.auth.currentUser!.id;
-    final data = await supabase
-        .from('profiles')
-        .select()
-        .eq('id', userId)
-        .single();
-    setState(() {
-      _usernameController.text = data['username'];
-      _emailController.text = data['email'];
-      _imageUrl = data['avatar_url'];
-    });
+    try {
+      final userId = supabase.auth.currentUser!.id;
+      final data = await supabase
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (data != null && mounted) {
+        setState(() {
+          _usernameController.text = data['username'] ?? '';
+          _emailController.text = data['email'] ?? '';
+          _imageUrl = data['avatar_url'];
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading profile: $e');
+    }
+  }
+
+  Future<void> _pickAndUploadAvatar() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image == null) return;
+
+    try {
+      final imageExtension = image.path.split('.').last;
+      final imageBytes = await image.readAsBytes();
+      final userId = supabase.auth.currentUser!.id;
+      final imagePath = '/$userId/profile';
+
+      await supabase.storage.from('profiles').uploadBinary(
+            imagePath,
+            imageBytes,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: 'image/$imageExtension',
+            ),
+          );
+
+      String imageUrl =
+          supabase.storage.from('profiles').getPublicUrl(imagePath);
+      imageUrl = Uri.parse(imageUrl)
+          .replace(queryParameters: {
+            't': DateTime.now().millisecondsSinceEpoch.toString()
+          })
+          .toString();
+
+      await supabase
+          .from('profiles')
+          .update({'avatar_url': imageUrl}).eq('id', userId);
+
+      if (mounted) {
+        setState(() => _imageUrl = imageUrl);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Avatar updated successfully!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
+
+    if (username.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Username cannot be empty')),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final userId = supabase.auth.currentUser!.id;
+      await supabase
+          .from('profiles')
+          .update({'username': username, 'email': email}).eq('id', userId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Profile updated successfully!'),
+            backgroundColor: Color(0xFF0D9488),
+          ),
+        );
+        Navigator.pop(context); // Return to overview
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = AuthService();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark ? const Color(0xFF121212) : AppColors.scaffoldBackground;
+    final headerGradient = isDark
+        ? const [Color(0xFF1A1A1A), Color(0xFF151515)]
+        : const [Color(0xFF0D9488), Color(0xFF14B8A6)];
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF1F2937);
+    final subColor = isDark ? Colors.white70 : const Color(0xFF6B7280);
 
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: background,
+      appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF1A1A1A) : AppColors.primary,
+        scrolledUnderElevation: 0,
+        elevation: 0,
+        leading: const CustomBackButton(color: Colors.white),
+        title: Text(
+          'Edit Profile',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+        centerTitle: true,
+      ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Header area
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: double.infinity,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1FAAA3), // teal-ish
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(40),
-                      bottomRight: Radius.circular(40),
+            // ── Avatar Picker ─────────────────────────────────────────────
+            Center(
+              child: Stack(
+                children: [
+                  GestureDetector(
+                    onTap: _pickAndUploadAvatar,
+                    child: Container(
+                      width: 110,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: headerGradient,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(isDark ? 0.2 : 0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: _imageUrl != null
+                          ? ClipOval(
+                              child: Image.network(
+                                _imageUrl!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => _avatarInitials(),
+                              ),
+                            )
+                          : _avatarInitials(),
                     ),
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Text(
-                              'Seerah Journey',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Journey Through the Seerah',
-                              style: TextStyle(color: Colors.white70),
+                  // Camera badge
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: GestureDetector(
+                      onTap: _pickAndUploadAvatar,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: AppColors.accent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 6,
                             ),
                           ],
                         ),
-                      ),
-                      const Icon(
-                        Icons.nights_stay,
-                        color: Color(0xFFF59E0B),
-                        size: 32,
-                      ),
-                    ],
-                  ),
-                ),
-
-                // avatar overlapping (extracted to widget)
-                AvatarPositioned(
-                  imageUrl: _imageUrl,
-                  onTap: () async {
-                    final ImagePicker picker = ImagePicker();
-                    final XFile? image = await picker.pickImage(
-                      source: ImageSource.gallery,
-                    );
-                    if (image == null) {
-                      return;
-                    }
-                    final imageBytes = await image.readAsBytes();
-                    final userId = supabase.auth.currentUser!.id;
-                    final imagePath = '/$userId/profile';
-                    await supabase.storage
-                        .from('profiles')
-                        .uploadBinary(imagePath, imageBytes);
-                    final imageUrl = supabase.storage
-                        .from('profiles')
-                        .getPublicUrl(imagePath);
-                    setState(() {
-                      _imageUrl = imageUrl;
-                    });
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Avatar uploaded successfully!'),
+                        child: const Icon(
+                          Iconsax.camera,
+                          color: Colors.white,
+                          size: 16,
                         ),
-                      );
-                    }
-                  },
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 72),
-            AvatarUploadButton(
-              onUpload: () async {
-                final ImagePicker picker = ImagePicker();
-                final XFile? image = await picker.pickImage(
-                  source: ImageSource.gallery,
-                );
-                if (image == null) {
-                  return;
-                }
-                final imageExtension = image.path.split('.').last;
-                final imageBytes = await image.readAsBytes();
-                final userId = supabase.auth.currentUser!.id;
-                final imagePath = '/$userId/profile';
-                await supabase.storage
-                    .from('profiles')
-                    .uploadBinary(
-                      imagePath,
-                      imageBytes,
-                      fileOptions: FileOptions(
-                        upsert: true,
-                        contentType: 'image/$imageExtension',
                       ),
-                    );
-                String imageUrl = supabase.storage
-                    .from('profiles')
-                    .getPublicUrl(imagePath);
-                imageUrl = Uri.parse(imageUrl)
-                    .replace(
-                      queryParameters: {
-                        't': DateTime.now().millisecondsSinceEpoch.toString(),
-                      },
-                    )
-                    .toString();
-                setState(() {
-                  _imageUrl = imageUrl;
-                });
-                await supabase
-                    .from('profiles')
-                    .update({'avatar_url': imageUrl})
-                    .eq('id', userId);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Avatar uploaded successfully!'),
-                    ),
-                  );
-                }
-              },
-            ),
-
-            const SizedBox(height: 10),
-
-            // Name below avatar
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _usernameController,
-              builder: (_, value, __) => Text(
-                value.text.isEmpty ? 'Your name' : value.text,
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(height: 10),
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _emailController,
-              builder: (_, value, __) => Text(
-                value.text.isEmpty ? 'Your email' : value.text,
-                style: TextStyle(color: Colors.black54),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Actions -> replaced with profile input fields and sign out
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                children: [
-                  const SizedBox(height: 8),
-                  const Text(
-                    'If you want to edit your name or email then update them here...',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
 
-                  // Profile input rows
+            const SizedBox(height: 8),
+            Text(
+              'Tap avatar to change photo',
+              style: TextStyle(
+                color: subColor,
+                fontSize: 12,
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // ── Form Card ────────────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: isDark ? Colors.black54 : Colors.black.withOpacity(0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Personal Information',
+                    style: TextStyle(
+                      color: isDark ? const Color(0xFF2DD4BF) : const Color(0xFF0D9488),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   ProfileInputField(
                     controller: _usernameController,
                     hintText: 'Username',
@@ -243,60 +287,103 @@ class _ProfileTabState extends State<ProfileTab> {
                     hintText: 'Email',
                     icon: Icons.email_outlined,
                   ),
-                  const SizedBox(height: 12),
-
-                  // spacing before Save
-                  const SizedBox(height: 10),
-
-                  // Small circular Save button centered
-                  SaveButton(
-                    onPressed: () async {
-                      final username = _usernameController.text.trim();
-                      final email = _emailController.text.trim();
-                      final userId = supabase.auth.currentUser!.id;
-                      await supabase
-                          .from('profiles')
-                          .update({'username': username, 'email': email})
-                          .eq('id', userId);
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Profile updated successfully!'),
-                          ),
-                        );
-                      }
-                      _getInitialProfile();
-                    },
-                  ),
-
-                  // spacing after Save
-                  const SizedBox(height: 25),
-
-                  // Keep sign out action
-                  ProfileAction(
-                    icon: Icons.logout,
-                    label: 'Sign out',
-                    showArrow: false,
-                    centerContent: true,
-                    onTap: () async {
-                      await auth.signOut();
-                      if (context.mounted) {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const LoginScreen(),
-                          ),
-                          (route) => false,
-                        );
-                      }
-                    },
-                  ),
                 ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            // ── Save Button ──────────────────────────────────────────────
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _saveProfile,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  disabledBackgroundColor: AppColors.primary.withOpacity(0.5),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  elevation: 4,
+                  shadowColor: AppColors.primary.withOpacity(0.4),
+                ),
+                child: _saving
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Iconsax.save_2, color: Colors.white, size: 20),
+                          SizedBox(width: 10),
+                          Text(
+                            'Save Changes',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Sign Out ─────────────────────────────────────────────────
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton(
+                onPressed: () async {
+                  await AuthService().signOut();
+                },
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red, width: 1.5),
+                  foregroundColor: isDark ? Colors.white : Colors.red,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Iconsax.logout, color: Colors.red, size: 20),
+                    SizedBox(width: 10),
+                    Text(
+                      'Sign Out',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
             const SizedBox(height: 40),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _avatarInitials() {
+    final name = _usernameController.text;
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'U',
+        style: const TextStyle(
+          fontSize: 42,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
         ),
       ),
     );

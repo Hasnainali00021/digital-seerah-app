@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
+import 'package:seerah_timeline/widget/custom_back_button.dart';
 
 class LessonDetailScreen extends StatelessWidget {
   final String title;
@@ -13,23 +14,27 @@ class LessonDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark ? const Color(0xFF121212) : AppColors.scaffoldBackground;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final mainText = isDark ? Colors.white : Colors.black87;
+    final subText = isDark ? Colors.white70 : Colors.grey;
+
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: background,
       appBar: AppBar(
-        title: Text(title, style: const TextStyle(color: Colors.black)),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: isDark ? const Color(0xFF1A1A1A) : AppColors.scaffoldBackground,
+        scrolledUnderElevation: 0,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.primary),
-          onPressed: () => Navigator.pop(context),
-        ),
+        title: Text(title, style: TextStyle(color: mainText)),
+        centerTitle: true,
+        leading: const CustomBackButton(),
       ),
       body: lessons.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 "No lessons available for this event.",
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+                style: TextStyle(fontSize: 16, color: subText),
               ),
             )
           : ListView.builder(
@@ -40,6 +45,7 @@ class LessonDetailScreen extends StatelessWidget {
                   elevation: 2,
                   margin: const EdgeInsets.only(bottom: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  color: cardColor,
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Row(
@@ -52,11 +58,11 @@ class LessonDetailScreen extends StatelessWidget {
                             lessons[index],
                             textAlign: TextAlign.right,
                             textDirection: TextDirection.rtl,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 16,
                               height: 1.5,
                               fontFamily: 'Noto Nastaliq Urdu',
-                              color: Colors.black87,
+                              color: mainText,
                             ),
                           ),
                         ),

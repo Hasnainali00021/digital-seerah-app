@@ -49,16 +49,40 @@ class AuthService {
       data: {'full_name': username}, // Matches SQL trigger expectation
     );
 
-      // If signup successful, the SQL trigger should handle profile creation.
-      // We do not manually upsert here because if email confirmation is required,
-      // we don't have a session yet, and RLS will block the insert.
+    // If signup successful, the SQL trigger should handle profile creation.
+    // We do not manually upsert here because if email confirmation is required,
+    // we don't have a session yet, and RLS will block the insert.
 
     return authResponse;
+  }
+
+  // Reset password
+  Future<void> resetPassword(String email) async {
+    await _supabase.auth.resetPasswordForEmail(
+      email,
+      redirectTo: 'io.supabase.seerahtimeline://login-callback/',
+    );
   }
 
   // Log out
   Future<void> signOut() async {
     await _supabase.auth.signOut();
+  }
+
+  // Sign in with Google
+  Future<void> signInWithGoogle() async {
+    await _supabase.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: 'io.supabase.seerahtimeline://login-callback/',
+    );
+  }
+
+  // Sign in with Facebook
+  Future<void> signInWithFacebook() async {
+    await _supabase.auth.signInWithOAuth(
+      OAuthProvider.facebook,
+      redirectTo: 'io.supabase.seerahtimeline://login-callback/',
+    );
   }
 
   // Get user email

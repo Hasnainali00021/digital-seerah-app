@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:seerah_timeline/models/quiz_model.dart';
 import 'package:seerah_timeline/services/quiz_api_service.dart';
 import 'package:seerah_timeline/widget/quiz_background.dart';
+import 'package:seerah_timeline/widget/custom_back_button.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:seerah_timeline/screen/quiz_screen.dart'; // For navigation after finishing?
+import 'package:seerah_timeline/providers/providers.dart';
 
-class ActiveQuizScreen extends StatefulWidget {
+class ActiveQuizScreen extends ConsumerStatefulWidget {
   final String eventTitle;
   final String eventContent;
 
@@ -17,10 +20,10 @@ class ActiveQuizScreen extends StatefulWidget {
   });
 
   @override
-  State<ActiveQuizScreen> createState() => _ActiveQuizScreenState();
+  ConsumerState<ActiveQuizScreen> createState() => _ActiveQuizScreenState();
 }
 
-class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
+class _ActiveQuizScreenState extends ConsumerState<ActiveQuizScreen> {
   final QuizApiService _apiService = QuizApiService();
   List<QuizQuestion> _questions = [];
   bool _isLoading = true;
@@ -119,18 +122,36 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
       }
       
       await prefs.setStringList('quiz_history', history);
+
+      ref.read(lastQuizResultProvider.notifier).save(
+            LastQuizResult(
+              title: widget.eventTitle,
+              score: _score,
+              total: _questions.length,
+              percentage: _questions.isEmpty
+                  ? 0
+                  : (_score / _questions.length * 100).toInt(),
+              date: DateTime.now().toIso8601String(),
+            ),
+          );
     } catch (e) {
       print("Error saving quiz result: $e");
     }
   }
 
   void _showResultDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.white70 : Colors.grey[600];
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
+        backgroundColor: dialogColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Quiz Completed!', textAlign: TextAlign.center),
+        title: Text('Quiz Completed!', textAlign: TextAlign.center, style: TextStyle(color: textColor)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -138,12 +159,12 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
             const SizedBox(height: 16),
             Text(
               'You scored $_score out of ${_questions.length}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textColor),
             ),
             const SizedBox(height: 8),
             Text(
                _score > _questions.length / 2 ? "Great job! MA SHA ALLAH" : "Keep learning!",
-               style: TextStyle(color: Colors.grey[600]),
+               style: TextStyle(color: subTextColor),
             )
           ],
         ),
@@ -171,18 +192,23 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final mainText = isDark ? Colors.white : Colors.black87;
+    final subText = isDark ? Colors.white70 : Colors.grey[600];
+    final optionText = isDark ? Colors.white : Colors.black54;
+    final defaultOptionBg = isDark ? const Color(0xFF2A2A2A) : Colors.white;
+    final defaultBorder = isDark ? Colors.white12 : Colors.grey.shade300;
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF0D9488)),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: const CustomBackButton(),
         actions: [
             IconButton(
-                icon: const Icon(Icons.notifications_none, color: Color(0xFF0D9488)),
+                icon: Icon(Icons.notifications_none, color: isDark ? Colors.white70 : const Color(0xFF0D9488)),
                 onPressed: () {},
             )
         ]
@@ -211,7 +237,7 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
                           "Test your knowledge of ${widget.eventTitle}",
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.grey[600],
+                            color: subText,
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -222,7 +248,7 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
                           children: [
                             Text(
                               "Question ${_currentIndex + 1} of ${_questions.length}",
-                              style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.black54),
+                              style: TextStyle(fontWeight: FontWeight.w600, color: mainText),
                             ),
                             Text(
                               "${((_currentIndex + 1) / _questions.length * 100).toInt()}%",
@@ -233,7 +259,7 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
                         const SizedBox(height: 8),
                         LinearProgressIndicator(
                           value: (_currentIndex + 1) / _questions.length,
-                          backgroundColor: Colors.grey[300],
+                          backgroundColor: isDark ? Colors.white12 : Colors.grey[300],
                           color: const Color(0xFF0D9488),
                           minHeight: 8,
                           borderRadius: BorderRadius.circular(4),
@@ -254,11 +280,11 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
                                      Container(
                                         padding: const EdgeInsets.all(24),
                                         decoration: BoxDecoration(
-                                            color: Colors.white,
+                                          color: surface,
                                             borderRadius: BorderRadius.circular(20),
                                             boxShadow: [
                                                 BoxShadow(
-                                                    color: Colors.black.withOpacity(0.05),
+                                              color: isDark ? Colors.black54 : Colors.black.withOpacity(0.05),
                                                     blurRadius: 10,
                                                     offset: const Offset(0, 5),
                                                 )
@@ -278,6 +304,7 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
                                                          child: Text(
                                                              "${_currentIndex + 1}",
                                                              style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                                                             // keep visible in dark/light modes
                                                          ),
                                                      ),
                                                 ),
@@ -287,10 +314,10 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
                                                 Text(
                                                     _questions[_currentIndex].question,
                                                     textAlign: TextAlign.center,
-                                                    style: const TextStyle(
+                                                  style: TextStyle(
                                                         fontSize: 18,
                                                         fontWeight: FontWeight.w600,
-                                                        color: Colors.black87,
+                                                    color: mainText,
                                                         fontFamily: 'Noto Nastaliq Urdu', // Urdu font
                                                         height: 1.6
                                                     ),
@@ -303,17 +330,19 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
                                                     final isSelected = _selectedOption == option;
                                                     final isCorrect = option == _questions[_currentIndex].correctAnswer;
                                                     
-                                                    Color borderColor = Colors.grey.shade300;
-                                                    Color textColor = Colors.black54;
-                                                    Color backgroundColor = Colors.white;
+                                                    Color borderColor = defaultBorder;
+                                                    Color textColor = optionText;
+                                                    Color backgroundColor = defaultOptionBg;
 
                                                     if (_isAnswerChecked) {
                                                         if (isCorrect) {
                                                             borderColor = Colors.green;
-                                                            backgroundColor = Colors.green.shade50;
+                                                        backgroundColor = isDark ? Colors.green.shade900.withOpacity(0.35) : Colors.green.shade50;
+                                                        textColor = isDark ? Colors.greenAccent.shade100 : Colors.green.shade700;
                                                         } else if (isSelected) {
                                                             borderColor = Colors.red;
-                                                            backgroundColor = Colors.red.shade50;
+                                                        backgroundColor = isDark ? Colors.red.shade900.withOpacity(0.35) : Colors.red.shade50;
+                                                        textColor = isDark ? Colors.redAccent.shade100 : Colors.red.shade700;
                                                         }
                                                     } else if (isSelected) {
                                                         borderColor = const Color(0xFF0D9488);
@@ -371,11 +400,12 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
                             Expanded(child: OutlinedButton(
                                 onPressed: () => Navigator.pop(context),
                                 style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    side: const BorderSide(color: Color(0xFF0D9488)),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              side: const BorderSide(color: Color(0xFF0D9488)),
+                              foregroundColor: isDark ? Colors.white : const Color(0xFF0D9488),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
                                 ),
-                                child: const Text("Quit Quiz", style: TextStyle(color: Color(0xFF0D9488))),
+                            child: const Text("Quit Quiz"),
                             )),
                             const SizedBox(width: 16),
                             Expanded(child: ElevatedButton(
@@ -385,7 +415,10 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
                                     padding: const EdgeInsets.symmetric(vertical: 16),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
                                 ),
-                                child: Text(_currentIndex == _questions.length - 1 ? "Show Result" : "Next Question"),
+                                child: Text(
+                                  _currentIndex == _questions.length - 1 ? "Show Result" : "Next Question",
+                                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                ),
                             )),
                         ],
                     )
@@ -399,7 +432,7 @@ class _ActiveQuizScreenState extends State<ActiveQuizScreen> {
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     elevation: 4
                             ),
-                            child: const Text("Check Answer", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            child: const Text("Check Answer", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                         ),
                     ),
                   )

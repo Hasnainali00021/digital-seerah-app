@@ -1,9 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:app_links/app_links.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'firebase_options.dart';
 import 'screen/splash_screen.dart';
 import 'screen/dashboard_screen.dart';
-import 'package:seerah_timeline/services/favorites_service.dart'; // Added import
+import 'screen/update_password_screen.dart';
+import 'providers/providers.dart';
+import 'auth/auth_gate.dart';
+import 'providers/theme_provider.dart';
 
 // 1. Define a global navigator key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -11,106 +18,177 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Initialize Firebase First
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   await Supabase.initialize(
     anonKey: "sb_publishable_t9ayeFDKIpuiUcj-2D-MdA_f6qDb2_O",
     url: 'https://hgcarcqmfwmbywrxmpnp.supabase.co',
   );
-  await FavoritesService().init(); // Added this line
-  runApp(const MyApp());
+
+  final prefs = await SharedPreferences.getInstance();
+  final savedThemeMode = prefs.getString('theme_mode');
+  initialThemeMode = savedThemeMode == ThemeMode.dark.name
+      ? ThemeMode.dark
+      : ThemeMode.light;
+
+  // ProviderScope wraps the entire app — Riverpod providers are now available everywhere.
+  // FavoritesService().init() is no longer needed; the FavoritesNotifier loads itself.
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 final supabase = Supabase.instance.client;
 
-class MyApp extends StatefulWidget {
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  ConsumerState<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
-  final _appLinks = AppLinks();
+class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
+  Timer? _inactivityTimer;
+  StreamSubscription<AuthState>? _authStateSubscription;
 
   @override
   void initState() {
     super.initState();
-    _handleIncomingLinks();
-    _handleInitialLink();
-  }
-
-  // Handle the initial link when app is opened from email
-  void _handleInitialLink() async {
-    try {
-      final uri = await _appLinks.getInitialLink();
-      print('📱 Initial link received: $uri');
-      if (uri != null) {
-        _processDeepLink(uri);
-      }
-    } catch (e) {
-      print('❌ Error handling initial link: $e');
-    }
-  }
-
-  // Handle links when app is already opened
-  void _handleIncomingLinks() {
-    _appLinks.uriLinkStream.listen((Uri? uri) {
-      print('📱 Incoming link received: $uri');
-      if (uri != null) {
-        _processDeepLink(uri);
+    WidgetsBinding.instance.addObserver(this);
+    
+    // Listen for auth state changes globally to clear navigation stack 
+    // when user signs in (e.g., via OAuth on the SignupScreen).
+    _authStateSubscription = supabase.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.signedIn) {
+        // Clear any pushed screens (like SignupScreen) to reveal AuthGate
+        navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      } else if (data.event == AuthChangeEvent.passwordRecovery) {
+        // New: Handle password recovery by navigating to the update screen
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const UpdatePasswordScreen()),
+        );
+      } else if (data.event == AuthChangeEvent.signedOut) {
+        // Reset the entire app routing to AuthGate when logged out
+        navigatorKey.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const AuthGate()),
+          (route) => false,
+        );
       }
     });
+    
+    // Initialize FCM
+    ref.read(fcmProvider).init();
+    // Initialize local notifications early
+    ref.read(localNotificationsProvider).init();
+  }
+  
+  @override
+  void dispose() {
+    _inactivityTimer?.cancel();
+    _authStateSubscription?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
-  // Process the deep link and extract auth token
-  void _processDeepLink(Uri uri) async {
-    try {
-      print('🔍 Processing deep link: $uri');
-
-      // Check for Custom Scheme (Preferred for Mobile Redirects)
-      final isCustomScheme = uri.scheme == 'io.supabase.seerah_timeline';
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    print('🔄 App lifecycle changed: $state');
+    if (state == AppLifecycleState.paused) {
+      // Read the last visited event title for the notification body
+      final lastVisited = ref.read(lastVisitedProvider);
       
-      // Check for Supabase Auth Verify Link (Legacy/Web flow)
-      final isSupabaseLink = uri.host == 'hgcarcqmfwmbywrxmpnp.supabase.co' &&
-          uri.path.contains('/auth/v1/verify');
-
-      if (isCustomScheme || isSupabaseLink) {
-        print('🔄 Attempting to get session from URL...');
-        try {
-          // getSessionFromUrl handles both:
-          // 1. Redirect URLs with `code` (PKCE) or `#access_token` (Implicit)
-          // 2. Direct Verify Links (Magic Link)
-          final response = await supabase.auth.getSessionFromUrl(uri, storeSession: true);
-          
-          if (response.session != null) {
-            print('✅ Authentication successful!');
-            print('✅ User: ${response.session?.user.email}');
-            
-            // 3. Navigate to Home Screen using the global key
-            navigatorKey.currentState?.pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const DashboardScreen()),
-              (route) => false,
-            );
-          } else {
-             print('⚠️ No session created from link.');
-          }
-        } catch (e) {
-          print('❌ Error getting session from URL: $e');
-        }
+      // Cancel any previous timer
+      _inactivityTimer?.cancel();
+      
+      // Start a Dart Timer — this fires reliably even on MIUI
+      // because the Flutter engine is still alive when paused.
+      // Change to Duration(hours: 24) for production!
+      _inactivityTimer = Timer(const Duration(seconds: 10), () {
+        print('⏰ Timer fired! Showing inactivity notification now');
+        ref.read(localNotificationsProvider).showInactivityReminder(lastVisited);
+      });
+      print('⏰ Started 10-second inactivity timer');
+    } else if (state == AppLifecycleState.resumed) {
+      // User came back — cancel the timer if it hasn't fired yet
+      if (_inactivityTimer?.isActive ?? false) {
+        _inactivityTimer!.cancel();
+        print('🧹 Canceled inactivity timer (user returned)');
       } else {
-        print('ℹ️ Not a recognized auth link');
+        print('✅ Timer already fired or not set');
       }
-    } catch (e) {
-      print('❌ Error processing deep link: $e');
     }
   }
 
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeModeProvider);
+
     return MaterialApp(
-      navigatorKey: navigatorKey, // 2. Assign the key
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Digital Seerah',
+      themeMode: themeMode,
+
+      // ── Light Theme ──────────────────────────────────────────────────
+      theme: ThemeData(
+        brightness: Brightness.light,
+        colorSchemeSeed: const Color(0xFF0D9488),
+        scaffoldBackgroundColor: const Color(0xFFF2F8F5),
+        cardColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF0D9488),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        textTheme: const TextTheme(
+          bodyMedium: TextStyle(color: Color(0xFF1F2937)),
+          bodySmall: TextStyle(color: Color(0xFF6B7280)),
+        ),
+        expansionTileTheme: const ExpansionTileThemeData(
+          textColor: Color(0xFF0D9488),
+          iconColor: Color(0xFF0D9488),
+          collapsedTextColor: Color(0xFF1F2937),
+          collapsedIconColor: Color(0xFF0D9488),
+        ),
+      ),
+
+      // ── Dark Theme ───────────────────────────────────────────────────
+      darkTheme: ThemeData(
+        brightness: Brightness.dark,
+        colorSchemeSeed: const Color(0xFF0D9488),
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        cardColor: const Color(0xFF1E1E1E),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1A1A1A),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        textTheme: const TextTheme(
+          bodyMedium: TextStyle(color: Color(0xFFE5E7EB)),
+          bodySmall: TextStyle(color: Color(0xFF9CA3AF)),
+          bodyLarge: TextStyle(color: Color(0xFFE5E7EB)),
+        ),
+        // Make cards, containers look good in dark mode
+        dividerColor: Colors.white12,
+        expansionTileTheme: const ExpansionTileThemeData(
+          textColor: Color(0xFF2DD4BF),
+          iconColor: Color(0xFF2DD4BF),
+          collapsedTextColor: Color(0xFFE5E7EB),
+          collapsedIconColor: Color(0xFF2DD4BF),
+          backgroundColor: Color(0xFF1E1E1E),
+          collapsedBackgroundColor: Color(0xFF1E1E1E),
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          filled: true,
+          fillColor: Color(0xFF2A2A2A),
+          border: OutlineInputBorder(),
+          labelStyle: TextStyle(color: Color(0xFF9CA3AF)),
+          hintStyle: TextStyle(color: Color(0xFF6B7280)),
+        ),
+      ),
+
       home: const SplashScreen(),
     );
   }

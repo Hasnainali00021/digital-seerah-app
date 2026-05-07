@@ -30,10 +30,13 @@ class CustomNetworkImage extends StatelessWidget {
     return url;
   }
 
+  bool _isVideoUrl(String url) {
+    return url.contains("youtube.com") || url.contains("youtu.be");
+  }
+
   @override
   Widget build(BuildContext context) {
     final effectiveUrl = _getThumbnailUrl(imageUrl);
-
     return Image.network(
       effectiveUrl,
       fit: fit,

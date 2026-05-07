@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
 import 'package:seerah_timeline/screen/lesson_detail_screen.dart';
+import 'package:seerah_timeline/widget/custom_back_button.dart';
 
 class LessonTab extends StatefulWidget {
   const LessonTab({super.key});
@@ -52,6 +53,12 @@ class _LessonTabState extends State<LessonTab> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark ? const Color(0xFF121212) : AppColors.scaffoldBackground;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final titleColor = isDark ? Colors.white : Colors.black87;
+    final subColor = isDark ? Colors.white70 : Colors.grey[600];
+
     if (isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -61,12 +68,28 @@ class _LessonTabState extends State<LessonTab> {
     }
 
     return Scaffold(
-        backgroundColor: AppColors.scaffoldBackground,
+        backgroundColor: background,
         appBar: AppBar(
-            title: const Text("Lessons & Wisdom", style: TextStyle(color: Colors.black)),
-            backgroundColor: Colors.transparent,
+            backgroundColor: isDark ? const Color(0xFF1A1A1A) : AppColors.scaffoldBackground,
+            scrolledUnderElevation: 0,
             elevation: 0,
-            automaticallyImplyLeading: false, 
+            leading: const CustomBackButton(),
+            title: RichText(
+              text: const TextSpan(
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                children: [
+                  TextSpan(
+                    text: 'Lessons & ',
+                    style: TextStyle(color: AppColors.primary),
+                  ),
+                  TextSpan(
+                    text: 'Wisdom',
+                    style: TextStyle(color: AppColors.accent),
+                  ),
+                ],
+              ),
+            ),
+            automaticallyImplyLeading: false,
             centerTitle: true,
         ),
         body: ListView.builder(
@@ -81,12 +104,13 @@ class _LessonTabState extends State<LessonTab> {
                     elevation: 2,
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                color: cardColor,
                     child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         leading: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                                color: AppColors.primary.withOpacity(0.1),
+                      color: AppColors.primary.withOpacity(isDark ? 0.18 : 0.1),
                                 shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.menu_book, color: AppColors.primary),
@@ -95,7 +119,7 @@ class _LessonTabState extends State<LessonTab> {
                             title,
                             textAlign: TextAlign.right,
                             textDirection: TextDirection.rtl,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Noto Nastaliq Urdu'),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Noto Nastaliq Urdu', color: titleColor),
                         ),
                         onTap: () {
                             Navigator.push(

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "402537311878",
+    "project_id": "seerahtimeline-18021",
+    "storage_bucket": "seerahtimeline-18021.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:402537311878:android:95c446312c7bcd2ceaeb07",
+        "android_client_info": {
+          "package_name": "com.example.seerah_timeline"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDRDxOuqCiI6AsHZdSypamJ0Yj5sPaWVt8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

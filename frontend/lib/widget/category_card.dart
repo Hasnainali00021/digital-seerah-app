@@ -15,20 +15,24 @@ class CategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDark ? const Color(0xFFE5E7EB) : Colors.black87;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardBg,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black12.withOpacity(0.05),
+              color: Colors.black.withOpacity(isDark ? 0.3 : 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
           ],
-          border: Border.all(color: Colors.grey.shade100),
+          border: Border.all(
+              color: isDark ? Colors.white12 : Colors.grey.shade100),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -36,7 +40,7 @@ class CategoryCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF0D9488).withOpacity(0.1),
+                color: const Color(0xFF0D9488).withOpacity(0.15),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -51,9 +55,8 @@ class CategoryCard extends StatelessWidget {
               child: Text(
                 title,
                 textAlign: TextAlign.center,
-                // textDirection: TextDirection.rtl,
-                style: const TextStyle(
-                  color: Colors.black87,
+                style: TextStyle(
+                  color: textColor,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                   fontFamily: 'Noto Nastaliq Urdu',

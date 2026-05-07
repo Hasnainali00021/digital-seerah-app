@@ -12,13 +12,17 @@ class BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return BottomNavigationBar(
       currentIndex: currentIndex,
       onTap: onTap,
       type: BottomNavigationBarType.fixed,
-      selectedItemColor: Colors.teal,
-      unselectedItemColor: Colors.grey,
-      backgroundColor: Colors.white,
+      selectedItemColor: isDark ? const Color(0xFF2DD4BF) : Colors.teal,
+      unselectedItemColor: isDark ? Colors.white60 : Colors.grey,
+      backgroundColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+      selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
         BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favourite'),

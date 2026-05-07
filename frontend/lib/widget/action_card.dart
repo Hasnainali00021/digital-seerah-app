@@ -1,5 +1,6 @@
 // TODO Implement this library.
 import 'package:flutter/material.dart';
+import 'package:seerah_timeline/constants/app_colors.dart';
 
 class ActionCard extends StatelessWidget {
   final Color color;
@@ -17,16 +18,20 @@ class ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final labelColor = isDark ? Colors.white : color;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardColor,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Colors.black26,
+              color: isDark ? Colors.black54 : Colors.black26,
               offset: Offset(0, 5),
               blurRadius: 5,
             ),
@@ -44,7 +49,7 @@ class ActionCard extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: color,
+                color: labelColor,
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),

@@ -22,34 +22,35 @@ class CustomAppbar extends StatefulWidget implements PreferredSizeWidget {
 class _CustomAppbarState extends State<CustomAppbar> {
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return AppBar(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: isDark ? const Color(0xFF1A1A1A) : AppColors.scaffoldBackground,
       scrolledUnderElevation: 0,
       centerTitle: true,
       elevation: 0,
-       
-        title: Transform.translate(
-          offset: const Offset(10,5),
-          child: RichText(
-            text: TextSpan(
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold), 
-              children: [
-                TextSpan(
-                  text: "${widget.titleOne}",
-                  style: const TextStyle(color:AppColors.primary),
-                ),
-                TextSpan(
-                  text: '${widget.titleTwo}',
-                  style: const TextStyle(color: AppColors.accent),
-                )
-              ]
+
+      title: Transform.translate(
+        offset: const Offset(10, 5),
+        child: RichText(
+          text: TextSpan(
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            children: [
+              TextSpan(
+                text: "${widget.titleOne}",
+                style: const TextStyle(color: AppColors.primary),
               ),
+              TextSpan(
+                text: '${widget.titleTwo}',
+                style: const TextStyle(color: AppColors.accent),
+              ),
+            ],
           ),
         ),
+      ),
 
-        leading: CustomBackButton(),
+      leading: CustomBackButton(),
 
-        automaticallyImplyLeading: false,
+      automaticallyImplyLeading: false,
     );
   }
 }

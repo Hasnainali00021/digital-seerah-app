@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:seerah_timeline/screen/dashboard_screen.dart';
 import 'package:seerah_timeline/screen/login_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'package:seerah_timeline/screen/update_password_screen.dart';
+import 'package:seerah_timeline/providers/providers.dart';
 
 /*
 
@@ -10,34 +14,37 @@ AUTH GATE  - This will contineously listen for auth state changes
 
 Unauthenticated  => Login Page
 Authenticated  => Dashboared Screen
+Recovery => Update Password Screen
 
 */
-class AuthGate extends StatelessWidget {
+class AuthGate extends ConsumerWidget {
   const AuthGate({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder(
-      // Listen to auth state changes
-      stream: Supabase.instance.client.auth.onAuthStateChange,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authStateProvider);
 
-      // Build appropiate page based on auth state
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+    return authState.when(
+      data: (state) {
+        final session = state.session;
+        final event = state.event;
+
+        // Route to the new password screen if responding to a reset link
+        if (event == AuthChangeEvent.passwordRecovery) {
+          return const UpdatePasswordScreen();
         }
 
-        // Check if there is valid session currently
-        final session = snapshot.hasData ? snapshot.data!.session : null;
-
+        // Otherwise check session
         if (session != null) {
-          return DashboardScreen();
+          return const DashboardScreen();
         } else {
-          return LoginScreen();
+          return const LoginScreen();
         }
       },
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => const LoginScreen(),
     );
   }
 }

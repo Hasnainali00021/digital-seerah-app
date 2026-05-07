@@ -2,8 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:seerah_timeline/auth/auth_gate.dart';
 import 'package:seerah_timeline/screen/dashboard_screen.dart';
+import 'package:seerah_timeline/screen/onboarding_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -15,7 +17,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   int _activeDotIndex = 0;
-  Timer? _animationTimer; 
+  Timer? _animationTimer;
 
   @override
   void initState() {
@@ -23,7 +25,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
     _startDotAnimation();
 
-    Timer(const Duration(seconds: 3), () {
+    Timer(const Duration(seconds: 3), () async {
       if (mounted) {
         final session = Supabase.instance.client.auth.currentSession;
         if (session != null) {
@@ -32,10 +34,21 @@ class _SplashScreenState extends State<SplashScreen> {
             MaterialPageRoute(builder: (context) => const DashboardScreen()),
           );
         } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const AuthGate()),
-          );
+          final prefs = await SharedPreferences.getInstance();
+          final bool hasSeenOnboarding =
+              prefs.getBool('has_seen_onboarding') ?? false;
+
+          if (hasSeenOnboarding && mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const AuthGate()),
+            );
+          } else if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+            );
+          }
         }
       }
     });
@@ -43,21 +56,22 @@ class _SplashScreenState extends State<SplashScreen> {
 
   void _startDotAnimation() {
     int tickCount = 0;
-    _animationTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
+    _animationTimer = Timer.periodic(const Duration(milliseconds: 500), (
+      timer,
+    ) {
       if (mounted) {
         setState(() {
           _activeDotIndex = (_activeDotIndex + 1) % 3;
         });
       }
-      
+
       tickCount++;
       // Stop after 6 ticks (3 seconds), matching your splash screen delay
-      if (tickCount >= 3) {
+      if (tickCount >= 6) {
         timer.cancel();
       }
     });
   }
-  
 
   @override
   void dispose() {
@@ -68,14 +82,24 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundGradient = isDark
+        ? const [Color(0xFF171717), Color(0xFF121212)]
+        : const [Color(0xFFE8FFF5), Color(0xFFD8F5EB)];
+    final panelColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final primaryText = isDark ? Colors.white : Colors.teal.shade800;
+    final accentText = isDark ? const Color(0xFFF59E0B) : Colors.orange.shade600;
+    final subtitleColor = isDark ? Colors.white70 : Colors.teal.shade700;
+    final lineColor = isDark ? Colors.white24 : Colors.teal.shade300;
+
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.scaffoldBackground,
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFE8FFF5), Color(0xFFD8F5EB)],
+            colors: backgroundGradient,
           ),
         ),
         child: Center(
@@ -86,11 +110,11 @@ class _SplashScreenState extends State<SplashScreen> {
                 height: 120,
                 width: 120,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: panelColor,
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.25),
+                      color: isDark ? Colors.black54 : Colors.grey.withOpacity(0.25),
                       blurRadius: 12,
                       offset: const Offset(0, 5),
                     ),
@@ -102,7 +126,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     Icon(
                       Icons.menu_book_rounded,
                       size: 50,
-                      color: Colors.teal.shade700,
+                      color: isDark ? const Color(0xFF2DD4BF) : Colors.teal.shade700,
                     ),
                     Positioned(
                       top: 20,
@@ -110,7 +134,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       child: Icon(
                         Icons.nights_stay_rounded,
                         size: 24,
-                        color: Colors.orange.shade400,
+                        color: accentText,
                       ),
                     ),
                     Positioned(
@@ -119,7 +143,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       child: Icon(
                         Iconsax.clock,
                         size: 20,
-                        color: Colors.orange.shade400,
+                        color: accentText,
                       ),
                     ),
                   ],
@@ -135,7 +159,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     TextSpan(
                       text: "Digital ",
                       style: TextStyle(
-                        color: Colors.teal.shade800,
+                        color: primaryText,
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Poppins',
@@ -144,7 +168,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     TextSpan(
                       text: "Seerah",
                       style: TextStyle(
-                        color: Colors.orange.shade600,
+                        color: accentText,
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'Poppins',
@@ -160,7 +184,7 @@ class _SplashScreenState extends State<SplashScreen> {
               Text(
                 "Journey Through the Seerah",
                 style: TextStyle(
-                  color: Colors.teal.shade700,
+                  color: subtitleColor,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.3,
@@ -170,7 +194,7 @@ class _SplashScreenState extends State<SplashScreen> {
               const SizedBox(height: 20),
 
               // Decorative line
-              Container(width: 100, height: 1, color: Colors.teal.shade300),
+              Container(width: 100, height: 1, color: lineColor),
 
               const SizedBox(height: 20),
 
@@ -183,7 +207,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 3),
                     child: _buildDot(
                       isActive,
-                      isActive ? Colors.orange.shade500 : Colors.teal.shade400,
+                      isActive ? accentText : (isDark ? Colors.white38 : Colors.teal.shade400),
                     ),
                   );
                 }),

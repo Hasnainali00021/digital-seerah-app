@@ -18,13 +18,23 @@ class ProfileInputField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fieldColor = isDark ? const Color(0xFF2A2A2A) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final hintColor = isDark ? Colors.white60 : Colors.black45;
+    final iconColor = isDark ? const Color(0xFF2DD4BF) : const Color(0xFF2C9F96);
+
     return Container(
       height: 52,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: fieldColor,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 4)),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black54 : Colors.black12,
+            blurRadius: 6,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -38,17 +48,17 @@ class ProfileInputField extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,
-            child: Icon(icon, color: const Color(0xFF2C9F96)),
+            child: Icon(icon, color: iconColor),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
               controller: controller,
               obscureText: obscureText,
-              style: const TextStyle(color: Colors.black87),
+              style: TextStyle(color: textColor),
               decoration: InputDecoration(
                 hintText: hintText,
-                hintStyle: const TextStyle(color: Colors.black45),
+                hintStyle: TextStyle(color: hintColor),
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),

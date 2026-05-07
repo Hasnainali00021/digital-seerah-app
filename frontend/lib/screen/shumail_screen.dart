@@ -5,6 +5,7 @@ import 'package:seerah_timeline/widget/custom_appbar.dart';
 import '../constants/app_colors.dart';
 import '../widget/category_card.dart';
 import './shumail_events_list_screen.dart';
+import '../services/offline_cache_service.dart';
 
 class ShumailScreen extends StatefulWidget {
     const ShumailScreen({super.key});
@@ -15,6 +16,7 @@ class ShumailScreen extends StatefulWidget {
 
 class _ShumailScreenState extends State<ShumailScreen> {
   final supabase = Supabase.instance.client;
+  static const String _cacheKey = 'shumail_categories_cache';
   String _searchQuery = "";
   final TextEditingController _searchController = TextEditingController();
   
@@ -29,6 +31,15 @@ class _ShumailScreenState extends State<ShumailScreen> {
   }
 
   Future<void> _fetchCategories() async {
+    final cachedCategories = await OfflineCacheService.loadStringList(_cacheKey);
+    if (cachedCategories != null && mounted) {
+      setState(() {
+        categories = cachedCategories;
+        filteredCategories = categories;
+        isLoading = false;
+      });
+    }
+
     try {
       // Fetch all events and extract unique categories
       final response = await supabase
@@ -48,11 +59,16 @@ class _ShumailScreenState extends State<ShumailScreen> {
         filteredCategories = categories;
         isLoading = false;
       });
+
+      await OfflineCacheService.saveStringList(_cacheKey, categories);
     } catch (e) {
       debugPrint('Error fetching categories: $e');
       if (mounted) {
         setState(() {
           isLoading = false;
+          if (categories.isEmpty) {
+            filteredCategories = [];
+          }
         });
       }
     }
@@ -86,8 +102,9 @@ class _ShumailScreenState extends State<ShumailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.scaffoldBackground,
       appBar: const CustomAppbar(titleOne: ' Shumail of ', titleTwo: 'Rasulullah ﷺ'),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -103,7 +120,12 @@ class _ShumailScreenState extends State<ShumailScreen> {
               child: isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : filteredCategories.isEmpty
-                      ? const Center(child: Text('No categories found', style: TextStyle(color: Colors.black54)))
+                      ? Center(
+                          child: Text(
+                            'No categories found',
+                            style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+                          ),
+                        )
                       : GridView.builder(
                           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 2,

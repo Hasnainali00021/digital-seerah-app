@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
 import 'package:seerah_timeline/screen/active_quiz_screen.dart';
+import 'package:seerah_timeline/widget/custom_back_button.dart';
 
 class QuizScreen extends StatefulWidget {
   const QuizScreen({Key? key}) : super(key: key);
@@ -46,13 +47,36 @@ class _QuizScreenState extends State<QuizScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final mainText = isDark ? Colors.white : Colors.black87;
+    final subText = isDark ? Colors.white70 : Colors.grey[600];
+    final emptyText = isDark ? Colors.white70 : Colors.black54;
+    final hintText = isDark ? Colors.white60 : Colors.grey;
+
     return Scaffold(
-      backgroundColor: AppColors.scaffoldBackground,
+      backgroundColor: isDark ? const Color(0xFF121212) : AppColors.scaffoldBackground,
       appBar: AppBar(
-        title: const Text('My Quiz History', style: TextStyle(color: Colors.black)),
-        backgroundColor: Colors.transparent,
+        backgroundColor: isDark ? const Color(0xFF1A1A1A) : AppColors.scaffoldBackground,
+        scrolledUnderElevation: 0,
         elevation: 0,
         centerTitle: true,
+        leading: const CustomBackButton(),
+        title: RichText(
+          text: const TextSpan(
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            children: [
+              TextSpan(
+                text: 'My Quiz ',
+                style: TextStyle(color: AppColors.primary),
+              ),
+              TextSpan(
+                text: 'History',
+                style: TextStyle(color: AppColors.accent),
+              ),
+            ],
+          ),
+        ),
         actions: [
             if (_history.isNotEmpty)
             IconButton(
@@ -108,6 +132,7 @@ class _QuizScreenState extends State<QuizScreen> {
                       elevation: 2,
                       margin: const EdgeInsets.only(bottom: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      color: cardColor,
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Row(
@@ -140,10 +165,10 @@ class _QuizScreenState extends State<QuizScreen> {
                                 children: [
                                   Text(
                                     item['title'] ?? 'Unknown Quiz',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.black87
+                                      color: mainText
                                     ),
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
@@ -153,7 +178,7 @@ class _QuizScreenState extends State<QuizScreen> {
                                     "Answered ${item['score']} / ${item['total']} correctly",
                                     style: TextStyle(
                                       fontSize: 14,
-                                      color: Colors.grey[600]
+                                      color: subText
                                     ),
                                   ),
                                 ],
@@ -195,6 +220,10 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   Widget _buildEmptyState() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final headingColor = isDark ? Colors.white : Colors.black54;
+    final bodyColor = isDark ? Colors.white70 : Colors.grey;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -213,16 +242,16 @@ class _QuizScreenState extends State<QuizScreen> {
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.black54
+              color: Colors.black54,
             ),
           ),
           const SizedBox(height: 8),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
               "Read stories in the timeline and take quizzes to test your knowledge!",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: bodyColor),
             ),
           )
         ],
