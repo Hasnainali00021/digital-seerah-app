@@ -18,4 +18,4 @@ workflows:
           mv Runner.app Payload/
           zip -r -q SeerahApp.ipa Payload
     artifacts:
-      - frontend/build/ios/iphoneos/SeerahApp.ipa
+      - "**/*.ipa"
