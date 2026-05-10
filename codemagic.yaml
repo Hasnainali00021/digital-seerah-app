@@ -16,6 +16,6 @@ workflows:
           cd build/ios/iphoneos
           mkdir -p Payload
           mv Runner.app Payload/
-          zip -r -q SeerahApp.ipa Payload
+          zip -r -y -q SeerahApp.ipa Payload
     artifacts:
       - "**/*.ipa"
