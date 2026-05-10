@@ -1,0 +1,21 @@
+workflows:
+  ios-free-build:
+    name: iOS Free Build (Unsigned IPA)
+    working_directory: frontend
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+    scripts:
+      - name: Get Flutter Packages
+        script: flutter packages get
+      - name: Build iOS app (Unsigned)
+        script: flutter build ios --release --no-codesign
+      - name: Package into IPA
+        script: |
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          mv Runner.app Payload/
+          zip -r -q SeerahApp.ipa Payload
+    artifacts:
+      - frontend/build/ios/iphoneos/SeerahApp.ipa
