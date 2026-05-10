@@ -73,7 +73,11 @@ class _TimelineScreenState extends ConsumerState<TimelineScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF121212) : AppColors.scaffoldBackground,
-      appBar: CustomAppbar(titleOne: "Seerah ", titleTwo: "Timeline"),
+      appBar: const CustomAppbar(
+        titleOne: "Seerah ",
+        titleTwo: "Timeline",
+        titleSize: 24,
+      ),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 5),
         child: Column(

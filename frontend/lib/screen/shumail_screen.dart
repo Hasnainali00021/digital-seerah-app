@@ -61,6 +61,10 @@ class _ShumailScreenState extends State<ShumailScreen> {
       });
 
       await OfflineCacheService.saveStringList(_cacheKey, categories);
+
+      // Pre-fetch ALL category events in background for offline support
+      // Users won't need to visit each tab with internet first
+      _prefetchAllCategoryEvents(categories);
     } catch (e) {
       debugPrint('Error fetching categories: $e');
       if (mounted) {
@@ -70,6 +74,29 @@ class _ShumailScreenState extends State<ShumailScreen> {
             filteredCategories = [];
           }
         });
+      }
+    }
+  }
+
+  /// Downloads and caches events for every category silently in the background.
+  Future<void> _prefetchAllCategoryEvents(List<String> cats) async {
+    for (final category in cats) {
+      final key = 'shumail_events_cache_${category.hashCode.abs()}';
+      // Only fetch if not already cached
+      final existing = await OfflineCacheService.loadJsonList(key);
+      if (existing == null) {
+        try {
+          final events = await supabase
+              .from('shumail_events')
+              .select()
+              .eq('category', category)
+              .order('order_index', ascending: true);
+          final eventList = List<Map<String, dynamic>>.from(events);
+          await OfflineCacheService.saveJsonList(key, eventList);
+          debugPrint('✅ Prefetched ${eventList.length} events for: $category');
+        } catch (e) {
+          debugPrint('⚠️ Prefetch failed for $category: $e');
+        }
       }
     }
   }

@@ -34,7 +34,10 @@ class BottomNavBar extends StatelessWidget {
           icon: Icon(Icons.play_circle_fill),
           label: 'Multimedia',
         ),
-        BottomNavigationBarItem(icon: Icon(Icons.school), label: 'Lesson'),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.quickreply_rounded),
+          label: 'AI Chat',
+        ),
       ],
     );
   }

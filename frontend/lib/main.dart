@@ -2,9 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'firebase_options.dart';
 import 'screen/splash_screen.dart';
 import 'screen/dashboard_screen.dart';
 import 'screen/update_password_screen.dart';
@@ -17,11 +15,6 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize Firebase First
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
 
   await Supabase.initialize(
     anonKey: "sb_publishable_t9ayeFDKIpuiUcj-2D-MdA_f6qDb2_O",
@@ -77,8 +70,6 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
       }
     });
     
-    // Initialize FCM
-    ref.read(fcmProvider).init();
     // Initialize local notifications early
     ref.read(localNotificationsProvider).init();
   }
@@ -95,7 +86,7 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     print('🔄 App lifecycle changed: $state');
     if (state == AppLifecycleState.paused) {
-      // Read the last visited event title for the notification body
+      // Data is always available now — loaded eagerly in main()
       final lastVisited = ref.read(lastVisitedProvider);
       
       // Cancel any previous timer
@@ -117,6 +108,10 @@ class _MyAppState extends ConsumerState<MyApp> with WidgetsBindingObserver {
       } else {
         print('✅ Timer already fired or not set');
       }
+      
+      // Force reload last visited from disk (SharedPreferences cache may be stale
+      // if Android killed our process and we were cold-started)
+      ref.read(lastVisitedProvider.notifier).reload();
     }
   }
 

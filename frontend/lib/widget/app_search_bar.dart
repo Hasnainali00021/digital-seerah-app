@@ -5,12 +5,14 @@ class AppSearchBar extends StatelessWidget {
   final String hintText;
   final ValueChanged<String>? onChanged;
   final TextEditingController? controller;
+  final EdgeInsetsGeometry? margin;
 
   const AppSearchBar({
     super.key,
     required this.hintText,
     required this.onChanged,
     required this.controller,
+    this.margin,
   });
 
   @override
@@ -22,7 +24,7 @@ class AppSearchBar extends StatelessWidget {
     final borderColor = isDark ? Colors.white12 : AppColors.backgroundMint;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
+      margin: margin ?? const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
         boxShadow: [

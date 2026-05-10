@@ -90,10 +90,10 @@ class LocalNotificationsService {
     // Build dynamic body
     final List<String> bodies = [];
     if (lastVisited != null && lastVisited.title.isNotEmpty) {
-      bodies.add('Continue where you left off... Explore more about "${lastVisited.title}" from the Prophet\'s (PBUH) life.');
+      bodies.add('Continue where you left off. Explore "${lastVisited.title}" from the Prophet\'s (PBUH) life.');
     }
-    bodies.add('Continue where you left... Continue exploring the Seerah Timeline and discover more amazing events.');
-    bodies.add('Remember Consistency is the key to lock the Door of Wisdom. Continue your Seerah journey when you are ready.');
+    bodies.add('Continue where you left. Explore the Seerah Timeline to discover more events.');
+    bodies.add('Remember consistency is the key to wisdom. Continue your journey.');
     
     final random = Random();
     final randomBody = bodies[random.nextInt(bodies.length)];
@@ -133,7 +133,7 @@ class LocalNotificationsService {
       await _flutterLocalNotificationsPlugin.show(
         id: 2001,
         title: 'We miss you!',
-        body: 'Continue where you left... Continue exploring the Seerah Timeline and discover more amazing events from the Prophet\'s (PBUH) life.',
+        body: 'Continue where you left. Explore the Seerah Timeline to discover more events from the Prophet\'s (PBUH) life.',
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
             'inactivity_reminder_channel_v2',
@@ -165,10 +165,10 @@ class LocalNotificationsService {
     // Generate message body
     final List<String> bodies = [];
     if (lastVisited != null && lastVisited.title.isNotEmpty) {
-      bodies.add('Continue where you left off... Explore more about "${lastVisited.title}" from the Prophet\'s (PBUH) life.');
+      bodies.add('Continue where you left off. Explore "${lastVisited.title}" from the Prophet\'s (PBUH) life.');
     }
-    bodies.add('Continue where you left... Continue exploring the Seerah Timeline and discover more amazing events.');
-    bodies.add('Remember Consistency is the key to lock the Door of Wisdom. Continue your Seerah journey when you are ready.');
+    bodies.add('Continue where you left. Explore the Seerah Timeline to discover more events.');
+    bodies.add('Remember consistency is the key to wisdom. Continue your Seerah journey when you are ready.');
     
     final random = Random();
     final randomBody = bodies[random.nextInt(bodies.length)];

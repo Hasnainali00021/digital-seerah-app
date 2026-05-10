@@ -88,7 +88,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const FavouriteTab(),
       const ProfileOverviewTab(),
       const MultimediaTab(),
-      const LessonTab(),
+      const ChatbotScreen(), // AI Chat tab
     ];
 
     return WillPopScope(
@@ -492,9 +492,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icons.menu_book,
             label: "Lessons",
             onTap: () {
-              setState(() {
-                _selectedIndex = 4;
-              });
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LessonTab()),
+              );
             },
           ),
         ),

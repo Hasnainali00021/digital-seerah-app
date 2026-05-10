@@ -17,7 +17,8 @@ class ShumailEventsListScreen extends StatefulWidget {
 
 class _ShumailEventsListScreenState extends State<ShumailEventsListScreen> {
   final supabase = Supabase.instance.client;
-  String get _cacheKey => 'shumail_events_cache_${widget.category.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_').toLowerCase()}';
+  // Use hashCode so Arabic category strings each get a unique stable key
+  String get _cacheKey => 'shumail_events_cache_${widget.category.hashCode.abs()}';
   List<Map<String, dynamic>> events = [];
   List<Map<String, dynamic>> filteredEvents = [];
   bool isLoading = true;
@@ -63,13 +64,17 @@ class _ShumailEventsListScreenState extends State<ShumailEventsListScreen> {
       await OfflineCacheService.saveJsonList(_cacheKey, events);
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        errorMessage = 'Failed to load events: $e';
-        isLoading = false;
-        if (events.isEmpty) {
-          filteredEvents = [];
-        }
-      });
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          // Only show error if we have no cached data to show
+          if (events.isEmpty) {
+            errorMessage = 'Failed to load events. Check your connection.';
+            filteredEvents = [];
+          }
+          // If we have cached data, silently ignore the network error
+        });
+      }
     }
   }
 

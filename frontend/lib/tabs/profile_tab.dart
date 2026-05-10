@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:seerah_timeline/auth/auth_service.dart';
@@ -20,6 +22,7 @@ class _ProfileTabState extends State<ProfileTab> {
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   String? _imageUrl;
+  Uint8List? _localImageBytes; // Local bytes for instant preview after upload
   bool _saving = false;
 
   @override
@@ -57,16 +60,34 @@ class _ProfileTabState extends State<ProfileTab> {
 
   Future<void> _pickAndUploadAvatar() async {
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
     if (image == null) return;
 
-    try {
-      final imageExtension = image.path.split('.').last;
-      final imageBytes = await image.readAsBytes();
-      final userId = supabase.auth.currentUser!.id;
-      final imagePath = '/$userId/profile';
+    // Read bytes immediately for local preview
+    final imageBytes = await image.readAsBytes();
 
-      await supabase.storage.from('profiles').uploadBinary(
+    // Show uploading feedback
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Uploading image...'),
+          duration: Duration(seconds: 15),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+    }
+
+    try {
+      final imageExtension = image.path.split('.').last.toLowerCase();
+      final userId = supabase.auth.currentUser!.id;
+      final imagePath = '$userId/profile.$imageExtension';
+
+      await supabase.storage.from('avatars').uploadBinary(
             imagePath,
             imageBytes,
             fileOptions: FileOptions(
@@ -75,28 +96,41 @@ class _ProfileTabState extends State<ProfileTab> {
             ),
           );
 
-      String imageUrl =
-          supabase.storage.from('profiles').getPublicUrl(imagePath);
-      imageUrl = Uri.parse(imageUrl)
-          .replace(queryParameters: {
-            't': DateTime.now().millisecondsSinceEpoch.toString()
-          })
-          .toString();
+      // Append version timestamp — makes every upload a unique cache key
+      // for CachedNetworkImage (same file path, but new URL = fresh download)
+      final imageUrl =
+          '${supabase.storage.from('avatars').getPublicUrl(imagePath)}'
+          '?v=${DateTime.now().millisecondsSinceEpoch}';
 
+      // Save versioned URL to profiles table
       await supabase
           .from('profiles')
           .update({'avatar_url': imageUrl}).eq('id', userId);
 
       if (mounted) {
-        setState(() => _imageUrl = imageUrl);
+        // Show local bytes instantly — no network request needed
+        setState(() {
+          _localImageBytes = imageBytes;
+          _imageUrl = imageUrl;
+        });
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Avatar updated successfully!')),
+          const SnackBar(
+            content: Text('✅ Avatar updated successfully!'),
+            backgroundColor: AppColors.primary,
+            duration: Duration(seconds: 3),
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e')),
+          SnackBar(
+            content: Text('Upload failed: ${e.toString()}'),
+            backgroundColor: Colors.red.shade700,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }
@@ -196,15 +230,39 @@ class _ProfileTabState extends State<ProfileTab> {
                           ),
                         ],
                       ),
-                      child: _imageUrl != null
+                      child: _localImageBytes != null
+                          // 1st priority: show local bytes instantly after upload
                           ? ClipOval(
-                              child: Image.network(
-                                _imageUrl!,
+                              child: Image.memory(
+                                _localImageBytes!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => _avatarInitials(),
+                                width: 110,
+                                height: 110,
                               ),
                             )
-                          : _avatarInitials(),
+                          : _imageUrl != null
+                              // 2nd priority: CachedNetworkImage — disk cached, persists across restarts
+                              ? ClipOval(
+                                  key: ValueKey(_imageUrl),
+                                  child: CachedNetworkImage(
+                                    imageUrl: _imageUrl!,
+                                    fit: BoxFit.cover,
+                                    width: 110,
+                                    height: 110,
+                                    placeholder: (context, url) => const Center(
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                    errorWidget: (context, url, error) {
+                                      debugPrint('Avatar load error: $error\nURL: $url');
+                                      return _avatarInitials();
+                                    },
+                                  ),
+                                )
+                              // 3rd priority: show initials
+                              : _avatarInitials(),
                     ),
                   ),
                   // Camera badge

@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
 import 'package:seerah_timeline/providers/providers.dart';
@@ -20,6 +22,7 @@ class _FavouriteTabState extends ConsumerState<FavouriteTab> {
   final _supabase = Supabase.instance.client;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
+  static const _cacheKey = 'cached_favourite_events';
 
   @override
   void initState() {
@@ -39,24 +42,43 @@ class _FavouriteTabState extends ConsumerState<FavouriteTab> {
 
   Future<List<Map<String, dynamic>>> _fetchFavorites(List<String> ids) async {
     if (ids.isEmpty) return [];
-    
-    final response = await _supabase
-        .from('timeline_events')
-        .select()
-        .filter('id', 'in', ids);
 
-    final List<Map<String, dynamic>> rawEvents = List<Map<String, dynamic>>.from(response);
+    // Try network first
+    try {
+      final response = await _supabase
+          .from('timeline_events')
+          .select()
+          .filter('id', 'in', ids);
 
-    // Sort to match information order if needed, or by ID
-    // Currently organizing by user added order (FIFO)
-    final Map<String, Map<String, dynamic>> eventMap = {
-      for (var e in rawEvents) e['id'].toString(): e
-    };
+      final List<Map<String, dynamic>> rawEvents =
+          List<Map<String, dynamic>>.from(response);
 
-    return ids
-        .where((id) => eventMap.containsKey(id))
-        .map((id) => eventMap[id]!)
-        .toList();
+      final Map<String, Map<String, dynamic>> eventMap = {
+        for (var e in rawEvents) e['id'].toString(): e
+      };
+
+      final ordered = ids
+          .where((id) => eventMap.containsKey(id))
+          .map((id) => eventMap[id]!)
+          .toList();
+
+      // Save to local cache for offline use
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cacheKey, jsonEncode(ordered));
+
+      return ordered;
+    } catch (_) {
+      // Network failed — load from cache
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString(_cacheKey);
+      if (cached != null) {
+        final list = jsonDecode(cached) as List<dynamic>;
+        final all = list.cast<Map<String, dynamic>>();
+        // Only return events whose IDs are still in the favorites list
+        return all.where((e) => ids.contains(e['id'].toString())).toList();
+      }
+      return []; // Empty instead of crashing
+    }
   }
   
   bool _hasContent(Map<String, dynamic> event) {
@@ -88,7 +110,7 @@ class _FavouriteTabState extends ConsumerState<FavouriteTab> {
         leading: const CustomBackButton(),
         title: RichText(
           text: const TextSpan(
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             children: [
               TextSpan(text: 'My ', style: TextStyle(color: AppColors.primary)),
               TextSpan(text: 'Favorites', style: TextStyle(color: AppColors.accent)),
@@ -101,30 +123,10 @@ class _FavouriteTabState extends ConsumerState<FavouriteTab> {
           children: [
             // Header Section
             Padding(
-              padding: const EdgeInsets.only(left: 20, right: 20, top: 20, bottom: 10),
+              padding: const EdgeInsets.only(left: 20, right: 20, top: 12, bottom: 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  RichText(
-                    text: const TextSpan(
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Inter', 
-                      ),
-                      children: [
-                        TextSpan(
-                          text: 'My ',
-                          style: TextStyle(color: AppColors.primary),
-                        ),
-                        TextSpan(
-                          text: 'Favorites',
-                          style: TextStyle(color: AppColors.accent),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
                   Text(
                     "Quick access to saved events & lessons",
                     style: TextStyle(
@@ -132,11 +134,12 @@ class _FavouriteTabState extends ConsumerState<FavouriteTab> {
                       fontSize: 14,
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   AppSearchBar(
                     hintText: "Search favorites...",
                     onChanged: (value) {},
                     controller: _searchController,
+                    margin: EdgeInsets.zero,
                   ),
                 ],
               ),
@@ -170,8 +173,26 @@ class _FavouriteTabState extends ConsumerState<FavouriteTab> {
                           return const Center(child: CircularProgressIndicator());
                        }
                        if (snapshot.hasError) {
-                         return Center(child: Text("Error loading favorites: ${snapshot.error}"));
-                       }
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.wifi_off_rounded, size: 52, color: Colors.grey.shade400),
+                                const SizedBox(height: 12),
+                                Text(
+                                  "You're offline",
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey.shade600),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  "Connect to internet to load your favorites",
+                                  style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          );
+                        }
                        
                        var events = snapshot.data ?? [];
                        

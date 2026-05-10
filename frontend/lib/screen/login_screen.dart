@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:seerah_timeline/auth/auth_service.dart';
+import 'package:seerah_timeline/services/validators.dart';
 import 'package:seerah_timeline/main.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
 import 'package:seerah_timeline/screen/dashboard_screen.dart';
@@ -234,7 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
               //  Reusable Login Box
               Center(
                 child: Container(
-                  width: 300,
+                  width: 304,
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     color: panelColor,
@@ -257,16 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           prefixIcon: Icons.email_outlined,
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Please enter your email";
-                            }
-                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                .hasMatch(value)) {
-                              return "Please enter a valid email";
-                            }
-                            return null;
-                          },
+                          validator: Validators.validateEmail,
                         ),
                         const SizedBox(height: 20),
                         CustomTextField(
@@ -274,15 +266,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           prefixIcon: Icons.lock_outline,
                           obscureText: true,
                           controller: _passwordController,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Please enter your password";
-                            }
-                            if (value.length < 6) {
-                              return "Password must be at least 6 characters";
-                            }
-                            return null;
-                          },
+                          validator: Validators.validatePassword,
                         ),
                         const SizedBox(height: 16),
                         Align(

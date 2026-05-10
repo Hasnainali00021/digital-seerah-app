@@ -5,11 +5,13 @@ import '../widget/custom_back_button.dart';
 class CustomAppbar extends StatefulWidget implements PreferredSizeWidget {
   final String titleOne;
   final String titleTwo;
+  final double titleSize;
 
   const CustomAppbar({
     super.key,
     required this.titleOne,
     required this.titleTwo,
+    this.titleSize = 22,
   });
 
   @override
@@ -29,23 +31,36 @@ class _CustomAppbarState extends State<CustomAppbar> {
       centerTitle: true,
       elevation: 0,
 
-      title: Transform.translate(
-        offset: const Offset(10, 5),
-        child: RichText(
-          text: TextSpan(
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            children: [
-              TextSpan(
-                text: "${widget.titleOne}",
-                style: const TextStyle(color: AppColors.primary),
+      title: LayoutBuilder(
+        builder: (context, constraints) {
+          return Transform.translate(
+            offset: const Offset(-8, 0),
+            child: SizedBox(
+              width: constraints.maxWidth,
+              child: Text.rich(
+                TextSpan(
+                  style: TextStyle(
+                    fontSize: widget.titleSize,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: widget.titleOne,
+                      style: const TextStyle(color: AppColors.primary),
+                    ),
+                    TextSpan(
+                      text: widget.titleTwo,
+                      style: const TextStyle(color: AppColors.accent),
+                    ),
+                  ],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
               ),
-              TextSpan(
-                text: '${widget.titleTwo}',
-                style: const TextStyle(color: AppColors.accent),
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
 
       leading: CustomBackButton(),

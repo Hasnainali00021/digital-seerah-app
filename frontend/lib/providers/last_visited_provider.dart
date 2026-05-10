@@ -39,29 +39,63 @@ class LastVisitedEvent {
       );
 }
 
+/// Uses the SAME proven pattern as ReadEventsNotifier (which works).
 class LastVisitedNotifier extends StateNotifier<LastVisitedEvent?> {
   LastVisitedNotifier() : super(null) {
-    _load();
+    _initFuture = _load();
   }
 
   static const String _prefsKey = 'last_visited_event';
+  late final Future<void> _initFuture;
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final jsonStr = prefs.getString(_prefsKey);
-    if (jsonStr != null) {
+    if (jsonStr != null && jsonStr.isNotEmpty) {
       try {
         state = LastVisitedEvent.fromJson(jsonDecode(jsonStr));
-      } catch (_) {
-        // Ignore corrupt data
+        print('📖 Last visited loaded from disk: ${state!.title}');
+      } catch (e) {
+        print('⚠️ Corrupt last_visited_event: $e');
       }
+    } else {
+      print('ℹ️ No last visited event on disk');
     }
   }
 
   Future<void> save(LastVisitedEvent event) async {
+    // Wait for initial load to finish first (same pattern as ReadEventsNotifier)
+    await _initFuture;
+
     state = event;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsKey, jsonEncode(event.toJson()));
+    final jsonStr = jsonEncode(event.toJson());
+    await prefs.setString(_prefsKey, jsonStr);
+
+    // Immediately verify the save by reading back
+    final verify = prefs.getString(_prefsKey);
+    if (verify != null && verify == jsonStr) {
+      print('✅ Last visited saved & verified: ${event.title}');
+    } else {
+      print('❌ SAVE VERIFICATION FAILED for: ${event.title}');
+    }
+  }
+
+  /// Force reload from disk — use when app resumes from background.
+  Future<void> reload() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final jsonStr = prefs.getString(_prefsKey);
+    if (jsonStr != null && jsonStr.isNotEmpty) {
+      try {
+        state = LastVisitedEvent.fromJson(jsonDecode(jsonStr));
+        print('🔄 Last visited reloaded: ${state!.title}');
+      } catch (e) {
+        print('⚠️ Corrupt data on reload: $e');
+      }
+    } else {
+      print('ℹ️ Nothing to reload from disk');
+    }
   }
 }
 

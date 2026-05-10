@@ -1,11 +1,12 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:seerah_timeline/auth/auth_service.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
 import 'package:seerah_timeline/main.dart';
 import 'package:seerah_timeline/providers/providers.dart';
-import 'package:seerah_timeline/screen/login_screen.dart';
 import 'package:seerah_timeline/tabs/profile_tab.dart';
 
 class ProfileOverviewTab extends ConsumerStatefulWidget {
@@ -20,34 +21,40 @@ class _ProfileOverviewTabState extends ConsumerState<ProfileOverviewTab> {
   String _email = '';
   String? _imageUrl;
   bool _loading = true;
-  late final ProviderSubscription<List<String>> _favoritesSub;
-  late final ProviderSubscription<List<String>> _readEventsSub;
-  late final ProviderSubscription<LastQuizResult?> _lastQuizResultSub;
+
+  static const _profileUsernameKey = 'cached_profile_username';
+  static const _profileEmailKey    = 'cached_profile_email';
+  static const _profileAvatarKey   = 'cached_profile_avatar';
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
-    _favoritesSub = ref.listenManual<List<String>>(favoritesProvider, (_, __) {
-      if (mounted) setState(() {});
-    });
-    _readEventsSub = ref.listenManual<List<String>>(readEventsProvider, (_, __) {
-      if (mounted) setState(() {});
-    });
-    _lastQuizResultSub = ref.listenManual<LastQuizResult?>(lastQuizResultProvider, (_, __) {
-      if (mounted) setState(() {});
-    });
   }
 
   @override
   void dispose() {
-    _favoritesSub.close();
-    _readEventsSub.close();
-    _lastQuizResultSub.close();
     super.dispose();
   }
 
   Future<void> _loadProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // ── Step 1: Load profile from local cache immediately (works offline) ───
+    final cachedName   = prefs.getString(_profileUsernameKey);
+    final cachedEmail  = prefs.getString(_profileEmailKey);
+    final cachedAvatar = prefs.getString(_profileAvatarKey);
+
+    if (mounted && cachedName != null) {
+      setState(() {
+        _username = cachedName;
+        _email    = cachedEmail ?? supabase.auth.currentUser?.email ?? '';
+        _imageUrl = cachedAvatar;
+        _loading  = false; // Show content immediately from cache
+      });
+    }
+
+    // ── Step 2: Fetch fresh from Supabase (if online) ────────────────────────
     try {
       final userId = supabase.auth.currentUser!.id;
       final data = await supabase
@@ -56,15 +63,25 @@ class _ProfileOverviewTabState extends ConsumerState<ProfileOverviewTab> {
           .eq('id', userId)
           .maybeSingle();
 
-      if (mounted) {
+      if (mounted && data != null) {
+        final name   = data['username'] as String? ?? 'Explorer';
+        final email  = data['email']    as String? ?? supabase.auth.currentUser?.email ?? '';
+        final avatar = data['avatar_url'] as String?;
+
+        // Save fresh data to local cache for next offline visit
+        await prefs.setString(_profileUsernameKey, name);
+        await prefs.setString(_profileEmailKey, email);
+        if (avatar != null) await prefs.setString(_profileAvatarKey, avatar);
+
         setState(() {
-          _username = data?['username'] ?? 'Explorer';
-          _email = data?['email'] ?? supabase.auth.currentUser?.email ?? '';
-          _imageUrl = data?['avatar_url'];
-          _loading = false;
+          _username        = name;
+          _email           = email;
+          _imageUrl        = avatar;
+          _loading         = false;
         });
       }
     } catch (e) {
+      // Network failed — already showing cached data, just hide spinner
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -72,9 +89,13 @@ class _ProfileOverviewTabState extends ConsumerState<ProfileOverviewTab> {
   @override
   Widget build(BuildContext context) {
     final isDark = ref.watch(themeModeProvider) == ThemeMode.dark;
+    // Watch providers directly so the widget rebuilds immediately on any change
     final favorites = ref.watch(favoritesProvider);
     final readEvents = ref.watch(readEventsProvider);
     final lastQuizResult = ref.watch(lastQuizResultProvider);
+
+    // ref.watch on these providers ensures the widget rebuilds live whenever
+    // the user reads a new event or adds a favourite — even on return from push.
 
     final bgColor = isDark ? const Color(0xFF121212) : const Color(0xFFF2F8F5);
     final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
@@ -315,23 +336,51 @@ class _ProfileOverviewTabState extends ConsumerState<ProfileOverviewTab> {
                       color: Colors.white.withOpacity(0.15),
                     ),
                   ),
-                  CircleAvatar(
-                    radius: 44,
-                    backgroundColor: Colors.white.withOpacity(0.25),
-                    backgroundImage:
-                        _imageUrl != null ? NetworkImage(_imageUrl!) : null,
-                    child: _imageUrl == null
-                        ? Text(
-                            _username.isNotEmpty
-                                ? _username[0].toUpperCase()
-                                : 'U',
-                            style: const TextStyle(
-                              fontSize: 36,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                  // ClipOval + CachedNetworkImage: disk-cached, persists across restarts
+                  ClipOval(
+                    key: ValueKey(_imageUrl ?? 'no-avatar'),
+                    child: Container(
+                      width: 88,
+                      height: 88,
+                      color: Colors.white.withOpacity(0.25),
+                      child: _imageUrl != null
+                          ? CachedNetworkImage(
+                              imageUrl: _imageUrl!,
+                              fit: BoxFit.cover,
+                              width: 88,
+                              height: 88,
+                              placeholder: (context, url) => const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => Center(
+                                child: Text(
+                                  _username.isNotEmpty
+                                      ? _username[0].toUpperCase()
+                                      : 'U',
+                                  style: const TextStyle(
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Text(
+                                _username.isNotEmpty
+                                    ? _username[0].toUpperCase()
+                                    : 'U',
+                                style: const TextStyle(
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
                             ),
-                          )
-                        : null,
+                    ),
                   ),
                 ],
               ),

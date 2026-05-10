@@ -6,5 +6,4 @@ export 'last_quiz_result_provider.dart';
 export 'read_events_provider.dart';
 export 'timeline_provider.dart';
 export 'notification_provider.dart';
-export 'fcm_provider.dart';
 export 'theme_provider.dart';

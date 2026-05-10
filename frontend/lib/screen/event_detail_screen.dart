@@ -240,9 +240,9 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                               widget.date,
                               textAlign: TextAlign.right,
                               textDirection: TextDirection.rtl,
-                              style: const TextStyle(
-                                color: Colors.black54, 
-                                fontSize: 12, 
+                              style: TextStyle(
+                                color: textSub,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w500,
                                 fontFamily: 'Noto Nastaliq Urdu',
                               ),

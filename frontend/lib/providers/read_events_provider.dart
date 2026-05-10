@@ -3,21 +3,24 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ReadEventsNotifier extends StateNotifier<List<String>> {
   ReadEventsNotifier() : super([]) {
-    _load();
+    _initFuture = _load();
   }
 
   static const String _prefsKey = 'read_event_ids';
+  late final Future<void> _initFuture;
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getStringList(_prefsKey);
+    final List<String>? stored = prefs.getStringList(_prefsKey);
     if (stored != null) {
-      final merged = {...state, ...stored}.toList();
-      state = merged;
+      state = stored;
     }
   }
 
   Future<void> markRead(String id) async {
+    // Always wait for the initial load to finish first
+    await _initFuture;
+
     if (state.contains(id)) {
       return;
     }

@@ -71,6 +71,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
         hintStyle: TextStyle(color: hintColor),
         errorText: widget.errorText,
         errorStyle: errorStyle,
+        errorMaxLines: 2,
         filled: true,
         fillColor: fieldFill,
         enabledBorder: OutlineInputBorder(

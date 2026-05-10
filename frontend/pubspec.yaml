@@ -26,10 +26,13 @@ dependencies:
   hijri: ^3.0.0
   flutter_riverpod: ^2.6.1
   flutter_local_notifications: ^21.0.0
-  firebase_core: ^4.7.0
-  firebase_messaging: ^16.2.0
   timezone: ^0.11.0
   flutter_timezone: ^5.0.2
+  cached_network_image: ^3.4.1
+  translator: ^1.0.4+1
+  flutter_markdown: ^0.7.7+1
+  record: ^6.2.0
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
@@ -42,10 +45,11 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
-  ios: false
+  ios: true
   image_path: "assets/images/login_logo_cropped.png"
   adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/images/login_logo_cropped.png"
+  min_ios_version: "12.0"
 
 flutter:
 

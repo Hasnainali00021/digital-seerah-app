@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:seerah_timeline/auth/auth_service.dart';
+import 'package:seerah_timeline/services/validators.dart';
 import 'package:seerah_timeline/constants/app_colors.dart';
 import '../widget/custom_text_field.dart';
 import 'login_screen.dart';
@@ -183,7 +184,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
               Center(
                 child: Container(
-                  width: 300,
+                  width: 304,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: panelColor,
@@ -205,15 +206,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           hintText: 'Username',
                           prefixIcon: Icons.person_outline,
                           controller: _usernameController,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Please enter a username";
-                            }
-                            if (value.length < 3) {
-                              return "Username must be at least 3 characters";
-                            }
-                            return null;
-                          },
+                          validator: Validators.validateUsername,
                         ),
                         const SizedBox(height: 16),
                         CustomTextField(
@@ -221,16 +214,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           prefixIcon: Icons.email_outlined,
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Please enter your email";
-                            }
-                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                .hasMatch(value)) {
-                              return "Please enter a valid email";
-                            }
-                            return null;
-                          },
+                          validator: Validators.validateEmail,
                         ),
                         const SizedBox(height: 16),
                         CustomTextField(
@@ -238,15 +222,7 @@ class _SignupScreenState extends State<SignupScreen> {
                           prefixIcon: Icons.lock_outline,
                           obscureText: true,
                           controller: _passwordController,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Please enter a password";
-                            }
-                            if (value.length < 6) {
-                              return "Password must be at least 6 characters";
-                            }
-                            return null;
-                          },
+                          validator: Validators.validatePassword,
                         ),
                         const SizedBox(height: 16),
                         CustomTextField(
@@ -254,15 +230,8 @@ class _SignupScreenState extends State<SignupScreen> {
                           prefixIcon: Icons.lock_person,
                           obscureText: true,
                           controller: _confirmPasswordController,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return "Please confirm your password";
-                            }
-                            if (value != _passwordController.text) {
-                              return "Passwords do not match";
-                            }
-                            return null;
-                          },
+                          validator: (value) => Validators.validateConfirmPassword(
+                              value, _passwordController.text),
                         ),
                         const SizedBox(height: 14),
                         Row(
