@@ -87,7 +87,7 @@ class ChatbotNotifier extends StateNotifier<ChatbotState> {
       }
 
       // Query Database
-      final url = Uri.parse('http://192.168.100.56:3000/api/chat/query');
+      final url = Uri.parse('https://digital-seerah-app.onrender.com/api/chat/query');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},

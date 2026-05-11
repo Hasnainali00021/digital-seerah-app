@@ -58,7 +58,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
           backgroundColor: AppColors.scaffoldBackground,
           appBar: AppBar(
             title: const Text(
-              "Video Lecture",
+              "Multimedia",
               style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold),
             ),
             centerTitle: true,

@@ -14,7 +14,7 @@ export const transcribeAudio = async (base64Audio, mimeType, language) => {
 
     // Use gemini-1.5-flash for speech — it has separate free-tier quota
     // and excellent audio transcription support
-    const speechModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+    const speechModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const result = await speechModel.generateContent([
         {

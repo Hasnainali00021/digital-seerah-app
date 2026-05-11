@@ -68,7 +68,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         final isDark = Theme.of(context).brightness == Brightness.dark;
         return AlertDialog(
           backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Text(
             'Select Voice Language',
             style: TextStyle(
@@ -81,16 +83,30 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
             children: [
               ListTile(
                 leading: const Text('🇬🇧', style: TextStyle(fontSize: 24)),
-                title: Text('English', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                title: Text(
+                  'English',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 tileColor: isDark ? const Color(0xFF2A2A2A) : Colors.grey[100],
                 onTap: () => Navigator.pop(ctx, 'en'),
               ),
               const SizedBox(height: 8),
               ListTile(
                 leading: const Text('🇵🇰', style: TextStyle(fontSize: 24)),
-                title: Text('اردو (Urdu)', style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                title: Text(
+                  'اردو (Urdu)',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 tileColor: isDark ? const Color(0xFF2A2A2A) : Colors.grey[100],
                 onTap: () => Navigator.pop(ctx, 'ur'),
               ),
@@ -150,7 +166,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       print('🎤 Audio size: ${audioBytes.length} bytes, sending to Gemini...');
 
       // Send to backend for Gemini transcription
-      final url = Uri.parse('http://192.168.100.56:3000/api/speech/transcribe');
+      final url = Uri.parse(
+        'https://digital-seerah-app.onrender.com/api/speech/transcribe',
+      );
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -175,7 +193,11 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Could not understand the audio. Please try again.')),
+              const SnackBar(
+                content: Text(
+                  'Could not understand the audio. Please try again.',
+                ),
+              ),
             );
           }
         }
@@ -184,21 +206,25 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         print('❌ Response body: ${response.body}');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Transcription failed (${response.statusCode})')),
+            SnackBar(
+              content: Text('Transcription failed (${response.statusCode})'),
+            ),
           );
         }
       }
     } catch (e) {
       print('❌ Transcription error: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _isTranscribing = false);
       // Clean up temp file
-      try { await File(path).delete(); } catch (_) {}
+      try {
+        await File(path).delete();
+      } catch (_) {}
     }
   }
 
@@ -209,12 +235,12 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     if (prefilledQuery == null) {
       _controller.clear();
     }
-    
+
     FocusScope.of(context).unfocus();
 
     // Call Provider to handle sendMessage
     ref.read(chatbotProvider.notifier).sendMessage(query);
-    
+
     // Scroll to bottom after message added
     Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
   }
@@ -222,7 +248,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark ? const Color(0xFF121212) : AppColors.scaffoldBackground;
+    final background = isDark
+        ? const Color(0xFF121212)
+        : AppColors.scaffoldBackground;
     final mainText = isDark ? Colors.white : Colors.black87;
     final subText = isDark ? Colors.white70 : Colors.grey[400];
 
@@ -232,7 +260,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     return Scaffold(
       backgroundColor: background,
       appBar: AppBar(
-        backgroundColor: isDark ? const Color(0xFF1A1A1A) : AppColors.scaffoldBackground,
+        backgroundColor: isDark
+            ? const Color(0xFF1A1A1A)
+            : AppColors.scaffoldBackground,
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -286,7 +316,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: isDark ? Colors.black54 : Colors.black.withOpacity(0.05),
+                            color: isDark
+                                ? Colors.black54
+                                : Colors.black.withOpacity(0.05),
                             blurRadius: 8,
                             offset: const Offset(0, 3),
                           ),
@@ -294,15 +326,14 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                       ),
                       child: TextField(
                         controller: _controller,
-                        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
                         minLines: 1,
                         maxLines: 5,
                         decoration: InputDecoration(
                           hintText: 'Search a topic...',
-                          hintStyle: TextStyle(
-                            color: subText,
-                            fontSize: 14,
-                          ),
+                          hintStyle: TextStyle(color: subText, fontSize: 14),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 14,
@@ -319,21 +350,27 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                                     color: _isRecording
                                         ? Colors.red.withOpacity(0.1)
                                         : _isTranscribing
-                                            ? Colors.orange.withOpacity(0.1)
-                                            : Colors.transparent,
+                                        ? Colors.orange.withOpacity(0.1)
+                                        : Colors.transparent,
                                     shape: BoxShape.circle,
                                   ),
                                   child: _isTranscribing
                                       ? const SizedBox(
                                           width: 20,
                                           height: 20,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
                                         )
                                       : Icon(
-                                          _isRecording ? Iconsax.stop : Iconsax.microphone_2,
+                                          _isRecording
+                                              ? Iconsax.stop
+                                              : Iconsax.microphone_2,
                                           color: _isRecording
                                               ? Colors.red
-                                              : (isDark ? Colors.white70 : Colors.grey[500]),
+                                              : (isDark
+                                                    ? Colors.white70
+                                                    : Colors.grey[500]),
                                           size: 20,
                                         ),
                                 ),
@@ -354,7 +391,9 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                     child: Container(
                       width: 46,
                       height: 46,
-                      margin: const EdgeInsets.only(bottom: 2), // align with center of 1-line textfield
+                      margin: const EdgeInsets.only(
+                        bottom: 2,
+                      ), // align with center of 1-line textfield
                       decoration: BoxDecoration(
                         color: AppColors.primary,
                         shape: BoxShape.circle,
@@ -454,26 +493,32 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: _suggestions.map((s) => GestureDetector(
-                        onTap: () => _onSend(s), // Now sends immediately
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: Text(
-                            s,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                  children: _suggestions
+                      .map(
+                        (s) => GestureDetector(
+                          onTap: () => _onSend(s), // Now sends immediately
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: Text(
+                              s,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
-                      )).toList(),
+                      )
+                      .toList(),
                 ),
               ],
             ),
@@ -495,21 +540,31 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
     );
   }
 
-  Widget _buildRichText(String text, bool isEnglishTxt, bool isUser, bool isDark, bool isError) {
+  Widget _buildRichText(
+    String text,
+    bool isEnglishTxt,
+    bool isUser,
+    bool isDark,
+    bool isError,
+  ) {
     final parts = text.split('**');
     final spans = <TextSpan>[];
     final defaultStyle = TextStyle(
-      color: isUser || isError ? Colors.white : (isDark ? Colors.white : Colors.black87),
+      color: isUser || isError
+          ? Colors.white
+          : (isDark ? Colors.white : Colors.black87),
       fontSize: 16,
     );
 
     for (int i = 0; i < parts.length; i++) {
       if (i % 2 == 1) {
         // Bold
-        spans.add(TextSpan(
-          text: parts[i],
-          style: defaultStyle.copyWith(fontWeight: FontWeight.bold),
-        ));
+        spans.add(
+          TextSpan(
+            text: parts[i],
+            style: defaultStyle.copyWith(fontWeight: FontWeight.bold),
+          ),
+        );
       } else {
         // Normal
         spans.add(TextSpan(text: parts[i], style: defaultStyle));
@@ -525,7 +580,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
   Widget _buildChatBubble(ChatMessage message, bool isDark) {
     final isUser = message.isUser;
-    
+
     // Use regex logic to detect if message is English to align correctly
     final isEnglishTxt = RegExp(r'[a-zA-Z]').hasMatch(message.text);
 
@@ -541,8 +596,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           color: isUser
               ? AppColors.primary
               : (message.isError
-                  ? Colors.redAccent
-                  : (isDark ? const Color(0xFF2A2A2A) : Colors.white)),
+                    ? Colors.redAccent
+                    : (isDark ? const Color(0xFF2A2A2A) : Colors.white)),
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(16),
             topRight: const Radius.circular(16),
@@ -560,7 +615,13 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildRichText(message.text, isEnglishTxt, isUser, isDark, message.isError),
+            _buildRichText(
+              message.text,
+              isEnglishTxt,
+              isUser,
+              isDark,
+              message.isError,
+            ),
             if (message.isStreaming) ...[
               const SizedBox(height: 8),
               Row(
@@ -577,10 +638,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                   SizedBox(width: 8),
                   Text(
                     'Typing...',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.primary,
-                    ),
+                    style: TextStyle(fontSize: 12, color: AppColors.primary),
                   ),
                 ],
               ),
@@ -621,7 +679,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
                   ),
                 );
               }).toList(),
-            ]
+            ],
           ],
         ),
       ),

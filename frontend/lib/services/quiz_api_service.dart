@@ -3,9 +3,8 @@ import 'package:http/http.dart' as http;
 import '../models/quiz_model.dart';
 
 class QuizApiService {
-  // Using the host LAN IP (192.168.100.56) works for BOTH the Physical Device
-  // AND the Android Emulator because the emulator can route to the host's LAN.
-  static const String _baseUrl = 'http://192.168.100.56:3000/api/quiz';
+  // Using the new deployed Render URL
+  static const String _baseUrl = 'https://digital-seerah-app.onrender.com/api/quiz';
 
   Future<List<QuizQuestion>> generateQuiz(String title, String content) async {
     try {
