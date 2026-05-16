@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax/iconsax.dart';
@@ -9,6 +10,7 @@ import 'package:seerah_timeline/providers/chatbot_provider.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:seerah_timeline/constants/api_constants.dart';
 
 class ChatbotScreen extends ConsumerStatefulWidget {
   const ChatbotScreen({super.key});
@@ -24,6 +26,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   bool _isRecording = false;
   bool _isTranscribing = false;
   String? _selectedLanguage; // 'en' or 'ur'
+  Timer? _silenceTimer;
+  StreamSubscription<Amplitude>? _amplitudeSubscription;
 
   final List<String> _suggestions = const [
     'Incident of Taif',
@@ -35,6 +39,8 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
   @override
   void dispose() {
+    _silenceTimer?.cancel();
+    _amplitudeSubscription?.cancel();
     _recorder.dispose();
     _controller.dispose();
     _scrollController.dispose();
@@ -144,9 +150,29 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
 
     setState(() => _isRecording = true);
     print('🎤 Recording started ($language)...');
+
+    _amplitudeSubscription?.cancel();
+    _amplitudeSubscription = _recorder.onAmplitudeChanged(const Duration(milliseconds: 200)).listen((amp) {
+      if (amp.current < -15.0) { // More aggressive silence threshold
+        if (_silenceTimer == null || !_silenceTimer!.isActive) {
+          _silenceTimer = Timer(const Duration(milliseconds: 1500), () {
+            if (_isRecording && mounted) {
+              print('🎤 Silence detected. Auto-stopping...');
+              _stopAndTranscribe();
+            }
+          });
+        }
+      } else {
+        // Voice detected, cancel the silence timer
+        _silenceTimer?.cancel();
+      }
+    });
   }
 
   Future<void> _stopAndTranscribe() async {
+    _silenceTimer?.cancel();
+    _amplitudeSubscription?.cancel();
+
     final path = await _recorder.stop();
     setState(() {
       _isRecording = false;
@@ -166,9 +192,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
       print('🎤 Audio size: ${audioBytes.length} bytes, sending to Gemini...');
 
       // Send to backend for Gemini transcription
-      final url = Uri.parse(
-        'https://digital-seerah-app.onrender.com/api/speech/transcribe',
-      );
+      final url = Uri.parse(ApiConstants.transcribeUrl);
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -177,7 +201,7 @@ class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
           'mimeType': 'audio/aac',
           'language': _selectedLanguage ?? 'en',
         }),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

@@ -1,4 +1,4 @@
-import { model } from '../config/gemini.js';
+import { generateWithFallback } from '../config/gemini.js';
 
 export const generateQuizService = async (content, title) => {
     try {
@@ -34,7 +34,7 @@ export const generateQuizService = async (content, title) => {
         ]
         `;
 
-        const result = await model.generateContent(prompt);
+        const result = await generateWithFallback(prompt);
         let text = result.response.text();
 
         // Clean up markdown if present

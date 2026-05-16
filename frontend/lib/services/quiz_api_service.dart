@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:seerah_timeline/constants/api_constants.dart';
 import '../models/quiz_model.dart';
 
 class QuizApiService {
-  // Using the new deployed Render URL
-  static const String _baseUrl = 'https://digital-seerah-app.onrender.com/api/quiz';
+  // Using centralized ApiConstants
+  static final String _baseUrl = ApiConstants.quizUrl;
 
   Future<List<QuizQuestion>> generateQuiz(String title, String content) async {
     try {

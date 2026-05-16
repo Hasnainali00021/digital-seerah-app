@@ -28,6 +28,14 @@ router.post('/transcribe', async (req, res) => {
     } catch (error) {
         console.error('❌ Speech transcription error:', error);
         console.error('❌ Full stack:', error.stack);
+
+        if (error.message?.includes('429') || error.message?.includes('quota')) {
+            return res.status(429).json({
+                error: 'Rate Limit Exceeded',
+                message: 'Speech transcription is rate-limited. Please retry in a few seconds.'
+            });
+        }
+
         res.status(500).json({
             error: 'Transcription failed',
             message: error.message,

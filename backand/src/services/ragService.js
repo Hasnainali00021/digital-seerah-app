@@ -1,5 +1,5 @@
 import { supabase } from '../config/supabase.js';
-import { model, embeddingModel } from '../config/gemini.js';
+import { embeddingModel, generateWithFallback } from '../config/gemini.js';
 
 export const processQuery = async (query) => {
     // 1. Generate Embedding
@@ -58,9 +58,9 @@ ${contextText}
 جواب:
     `.trim();
 
-    // 5. Generate
+    // 5. Generate with automatic model fallback
     console.log('🤖 Calling Gemini API...');
-    const result = await model.generateContent(prompt);
+    const result = await generateWithFallback(prompt);
     const answer = result.response.text();
     console.log(`✅ Answer generated (${answer.length} chars)`);
 

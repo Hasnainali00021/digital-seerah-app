@@ -1,9 +1,8 @@
-import { genAI } from '../config/gemini.js';
+import { generateWithFallback } from '../config/gemini.js';
 
 /**
  * Transcribe audio using Gemini's multimodal capabilities.
- * Uses gemini-1.5-flash specifically (separate quota from gemini-2.0-flash
- * used by the chatbot, and has generous free-tier audio support).
+ * Uses the same fallback model chain as the chatbot for reliability.
  */
 export const transcribeAudio = async (base64Audio, mimeType, language) => {
     console.log(`🎤 Transcribing audio (${mimeType}, lang: ${language}, size: ${base64Audio.length} chars)...`);
@@ -12,11 +11,7 @@ export const transcribeAudio = async (base64Audio, mimeType, language) => {
         ? 'The audio is in Urdu (اردو). Transcribe it in Urdu script.'
         : 'The audio is in English. Transcribe it in English.';
 
-    // Use gemini-1.5-flash for speech — it has separate free-tier quota
-    // and excellent audio transcription support
-    const speechModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
-    const result = await speechModel.generateContent([
+    const prompt = [
         {
             inlineData: {
                 mimeType: mimeType,
@@ -32,8 +27,9 @@ Rules:
 3. Do not add any extra words or translations.
 4. Preserve the original language of the speech.`,
         },
-    ]);
+    ];
 
+    const result = await generateWithFallback(prompt);
     const transcription = result.response.text().trim();
     console.log(`✅ Transcription: "${transcription}"`);
     return transcription;

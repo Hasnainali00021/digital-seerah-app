@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:translator/translator.dart';
+import 'package:seerah_timeline/constants/api_constants.dart';
 
 class ChatMessage {
   final String text;
@@ -87,12 +88,12 @@ class ChatbotNotifier extends StateNotifier<ChatbotState> {
       }
 
       // Query Database
-      final url = Uri.parse('https://digital-seerah-app.onrender.com/api/chat/query');
+      final url = Uri.parse(ApiConstants.chatQueryUrl);
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'query': queryForDb}),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -115,8 +116,7 @@ class ChatbotNotifier extends StateNotifier<ChatbotState> {
 
         // Pipeline 2: Translate back to English if input was English
         if (englishInput) {
-          final translatedAnswer = await _translator.translate(answer, from: 'ur', to: 'en');
-          answer = translatedAnswer.text;
+          answer = await _translateLongText(answer, 'ur', 'en');
         }
 
         // Stream the response out
@@ -176,6 +176,33 @@ class ChatbotNotifier extends StateNotifier<ChatbotState> {
       messages: [...state.messages, errorMsg],
       isLoading: false,
     );
+  }
+
+  /// Translates long text by splitting it into smaller chunks to avoid Google Translate limits (approx 5000 chars)
+  Future<String> _translateLongText(String text, String from, String to) async {
+    try {
+      if (text.length <= 4000) {
+        final translated = await _translator.translate(text, from: from, to: to);
+        return translated.text;
+      }
+
+      // Split text into chunks of 4000 characters
+      final List<String> chunks = [];
+      for (var i = 0; i < text.length; i += 4000) {
+        chunks.add(text.substring(i, i + 4000 > text.length ? text.length : i + 4000));
+      }
+
+      final List<String> translatedChunks = [];
+      for (var chunk in chunks) {
+        final translated = await _translator.translate(chunk, from: from, to: to);
+        translatedChunks.add(translated.text);
+      }
+
+      return translatedChunks.join(' ');
+    } catch (e) {
+      print('Translation error: $e');
+      return text; // Return original text if translation fails
+    }
   }
 }
 
