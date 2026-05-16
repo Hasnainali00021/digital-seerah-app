@@ -63,22 +63,29 @@ class _ProfileOverviewTabState extends ConsumerState<ProfileOverviewTab> {
           .eq('id', userId)
           .maybeSingle();
 
-      if (mounted && data != null) {
-        final name   = data['username'] as String? ?? 'Explorer';
-        final email  = data['email']    as String? ?? supabase.auth.currentUser?.email ?? '';
-        final avatar = data['avatar_url'] as String?;
+      if (mounted) {
+        if (data != null) {
+          final name   = data['username'] as String? ?? 'Explorer';
+          final email  = data['email']    as String? ?? supabase.auth.currentUser?.email ?? '';
+          final avatar = data['avatar_url'] as String?;
 
-        // Save fresh data to local cache for next offline visit
-        await prefs.setString(_profileUsernameKey, name);
-        await prefs.setString(_profileEmailKey, email);
-        if (avatar != null) await prefs.setString(_profileAvatarKey, avatar);
+          // Save fresh data to local cache for next offline visit
+          await prefs.setString(_profileUsernameKey, name);
+          await prefs.setString(_profileEmailKey, email);
+          if (avatar != null) await prefs.setString(_profileAvatarKey, avatar);
 
-        setState(() {
-          _username        = name;
-          _email           = email;
-          _imageUrl        = avatar;
-          _loading         = false;
-        });
+          setState(() {
+            _username        = name;
+            _email           = email;
+            _imageUrl        = avatar;
+            _loading         = false;
+          });
+        } else {
+          // If no profile data exists, still hide the spinner
+          setState(() {
+            _loading = false;
+          });
+        }
       }
     } catch (e) {
       // Network failed — already showing cached data, just hide spinner
